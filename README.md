@@ -1,1 +1,3 @@
-# python_project_template
+# lidar-gps-chimera
+
+LiDAR GPS fusion with Chimera authentication
