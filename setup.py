@@ -6,11 +6,11 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='projectname',
+    name='lidar_gps_chimera',
     version='1.0',
-    description='Example description',
-    author='Example Author',
-    author_email='author@example.com',
-    url='https://github.com/user/example',
+    description='LiDAR GPS Fusion with Chimera Authentication',
+    author='Adam Dai',
+    author_email='adamdai97@gmail.com',
+    url='https://github.com/adamdai/lidar-gps-chimera',
     packages=find_packages(),
 )
