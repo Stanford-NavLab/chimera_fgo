@@ -14,12 +14,12 @@ Create conda environment:
 
 Active the environment:
    
-    conda activate planeslam
+    conda activate chimera
     
 Install dependencies:
 
     pip install numpy scipy ipykernel ipympl plotly pandas open3d graphslam
    
-Install `planeslam` locally from directory containing `setup.py`
+Install `chimera` locally from directory containing `setup.py`
    
     pip install -e .
