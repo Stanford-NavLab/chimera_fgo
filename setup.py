@@ -6,7 +6,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='lidar_gps_chimera',
+    name='lgchimera',
     version='1.0',
     description='LiDAR GPS Fusion with Chimera Authentication',
     author='Adam Dai',
