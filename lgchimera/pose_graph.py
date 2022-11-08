@@ -21,7 +21,9 @@ class PoseGraph:
     This class is a wrapper around the graphslam Graph class. 
 
     Vertices: nodes (poses) and factors (GPS positions)
-    Edges: 
+
+    Node indexing starts at 1
+    Vertex index for node i is -i
 
     Attributes
     ----------
@@ -148,15 +150,19 @@ class PoseGraph:
         """
         # Link edges before calling optimize
         self.graph._link_edges()
-        # Suppress output
-        with SuppressPrint():
-            self.graph.optimize()
+        # # Suppress output
+        # with SuppressPrint():
+        #     self.graph.optimize()
+        self.graph.optimize()
 
 
     def plot_trace(self):
         """Generate plot trace
         
         """
+        # Link edges before plotting
+        self.graph._link_edges()
+
         fixed = []
         free = []
         for v in self.graph._vertices:
