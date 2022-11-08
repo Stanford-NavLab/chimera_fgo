@@ -37,13 +37,15 @@ class PoseGraph:
 
     """
 
-    def __init__(self, edges=[], vertices=[]):
+    def __init__(self):
         """Constructor
 
         Initialize a PoseGraph (default empty)
 
         """
-        self.graph = Graph(edges, vertices)
+        self.graph = Graph([], [])
+        # self.graph._edges = edges
+        # self.graph._vertices = vertices
         
 
     def add_node(self, id, pose):
@@ -83,6 +85,13 @@ class PoseGraph:
 
         GPS position factor represented as vertex containing position measurement
         connected to associated pose vertex with identity edge.
+
+        Parameters
+        ----------
+        id : int
+            Vertex ID
+        pose : tuple (R,t)
+            Tuple of rotation and translation
         
         """
         # Factor vertex
