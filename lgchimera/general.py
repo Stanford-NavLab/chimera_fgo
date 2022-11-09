@@ -44,6 +44,90 @@ def NED_to_ENU(P):
     return P
 
 
+def lla_to_ecef(lat, lon, alt):
+    """LLA to ECEF conversion.
+
+    Parameters
+    ----------
+    lat : float
+        Latitude in degrees (N°).
+    lat : float
+        Longitude in degrees (E°).
+    alt : float
+        Altitude in meters.
+
+    Returns
+    -------
+    ecef : np.ndarray
+        ECEF coordinates corresponding to input LLA.
+
+    Notes
+    -----
+    Based on code from https://github.com/Stanford-NavLab/gnss_lib_py.
+
+    """
+    A = 6378137  # Semi-major axis (radius) of the Earth [m].
+    E1SQ = 6.69437999014 * 0.001  # First esscentricity squared of Earth (not orbit).
+    lat = np.deg2rad(lat); lon = np.deg2rad(lon)
+    xi = np.sqrt(1 - E1SQ * np.sin(lat)**2)
+    x = (A / xi + alt) * np.cos(lat) * np.cos(lon)
+    y = (A / xi + alt) * np.cos(lat) * np.sin(lon)
+    z = (A / xi * (1 - E1SQ) + alt) * np.sin(lat)
+    ecef = np.array([x, y, z]).T
+    return ecef
+
+
+def ecef2enu(x, y, z, lat_ref, lon_ref, alt_ref):
+    """ECEF to ENU
+    
+    Convert ECEF (m) coordinates to ENU (m) about reference latitude (N°) and longitude (E°).
+
+    Parameters
+    ----------
+    x : float
+        ECEF x-coordinate
+    y : float
+        ECEF y-coordinate
+    z : float
+        ECEF z-coordinate
+    lat_ref : float
+        Reference latitude (N°) 
+    lon_ref : float
+        Reference longitude (E°) 
+    alt_ref : float
+        Reference altitude (m)
+    
+    Returns
+    -------
+    x : float
+        ENU x-coordinate
+    y : float
+        ENU y-coordinate
+    z : float
+        ENU z-coordinate
+
+    """
+    ecef_ref = lla_to_ecef(lat_ref, lon_ref, alt_ref)
+    lat_ref = np.deg2rad(lat_ref)
+    lon_ref = np.deg2rad(lon_ref + 360)
+    C = np.zeros((3,3))
+    C[0,0] = -np.sin(lat_ref)*np.cos(lon_ref)
+    C[0,1] = -np.sin(lat_ref)*np.sin(lon_ref)
+    C[0,2] = np.cos(lat_ref)
+
+    C[1,0] = -np.sin(lon_ref)
+    C[1,1] = np.cos(lon_ref)
+    C[1,2] = 0
+
+    C[2,0] = np.cos(lat_ref)*np.cos(lon_ref)
+    C[2,1] = np.cos(lat_ref)*np.sin(lon_ref)
+    C[2,2] = np.sin(lat_ref)
+
+    x, y, z = np.dot(C, np.array([x, y, z]) - ecef_ref)
+
+    return x, y, z
+
+
 def remap(arr, k, v):
     """Remap the elements of an array using the map k->v
 
