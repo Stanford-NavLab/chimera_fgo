@@ -38,6 +38,7 @@ def initialize_source_and_target(source_data, target_data):
 
     return source, target
 
+
 def p2p_ICP(source, target, threshold, trans_init):
     """Point-to-Point ICP
     
