@@ -165,7 +165,7 @@ class PoseGraph:
         self.graph.optimize()
 
 
-    def plot_trace(self):
+    def plot_trace(self, marker_size=5, edge_width=5):
         """Generate plot trace
         
         """
@@ -184,11 +184,11 @@ class PoseGraph:
 
         # Draw fixed vertices as boxes
         factors = go.Scatter3d(x=fixed[:,0], y=fixed[:,1], z=fixed[:,2], showlegend=False, 
-            mode='markers', marker=dict(size=7, color='orange', symbol='square'))
+            mode='markers', marker=dict(size=marker_size, color='orange', symbol='square'))
 
         # Non-fixed vertices
         nodes = go.Scatter3d(x=free[:,0], y=free[:,1], z=free[:,2], showlegend=False, 
-            mode='markers', marker=dict(size=7, color='blue', symbol='circle'))
+            mode='markers', marker=dict(size=marker_size, color='blue', symbol='circle'))
 
         # Edges
         edge_x = []
@@ -207,9 +207,29 @@ class PoseGraph:
             edge_z.append(z1)
             edge_z.append(None)
         edges = go.Scatter3d(x=edge_x, y=edge_y, z=edge_z, mode='lines', showlegend=False, 
-            line=dict(width=7, color='orange'))
+            line=dict(width=edge_width, color='orange'))
 
         return [factors, nodes, edges]
+
+
+    def test_statistic(self):
+        """Compute test statistic for spoofing detection
+
+        Returns
+        -------
+        q : float
+            Test statistic 
+
+        """
+        # Link edges before plotting
+        self.graph._link_edges()
+
+        # Compute test statistic
+        q = 0
+        for e in self.graph._edges:
+            if e.vertex_ids[0] > 0:
+                q += e.calc_chi2()
+        return q
         
 
     def detect_loop_closures(self):

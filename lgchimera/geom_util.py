@@ -173,6 +173,108 @@ def skew(v):
                      [-v[1], v[0], 0]])
 
 
+def so3_expmap(w):
+    """SO(3) exponential map w -> R
+    
+    Parameters
+    ----------
+    w : np.array (3)
+        Parameterized rotation (in so(3))
+
+    Returns
+    -------
+    R : np.array (3 x 3)
+        Rotation matrix (in SO(3))
+    
+    """
+    theta = np.linalg.norm(w)
+
+    if theta == 0:
+        R = np.eye(3)
+    else:
+        u = w / theta
+        R = np.eye(3) + np.sin(theta) * skew(u) + (1-np.cos(theta)) * np.linalg.matrix_power(skew(u), 2) 
+    
+    return R
+
+
+def so3_logmap(R):
+    """SO(3) logarithm map R -> w
+    
+    Parameters
+    ----------
+    R : np.array (3 x 3)
+        Rotation matrix (in SO(3))
+
+    Returns
+    -------
+    w : np.array (3)
+        Parameterized rotation (in so(3))
+    
+    """
+    theta = np.arccos((np.trace(R) - 1) / 2)
+    if theta == 0:
+        w = np.zeros(3)
+    else:
+        w = theta / (2 * np.sin(theta)) * np.array([R[2, 1] - R[1, 2],
+                                                   R[0, 2] - R[2, 0],
+                                                   R[1, 0] - R[0, 1]])
+    return w
+
+
+def se3_expmap(v):
+    """SE(3) exponential map v -> T
+    
+    Parameters
+    ----------
+    v : np.array (6)
+        Parameterized rotation (in se(3))
+
+    Returns
+    -------
+    R : np.array (4 x 4)
+        Rotation matrix (in SE(3))
+    
+    """
+    t = v[:3]
+    w = v[3:]
+    theta = np.linalg.norm(w)
+
+    R = so3_expmap(w) 
+
+    if theta == 0:
+        V = np.eye(3)
+    else:
+        V = np.eye(3) + ((1-np.cos(theta))/theta**2) * skew(w) + ((theta-np.sin(theta))/theta**3) * np.linalg.matrix_power(skew(w), 2)
+    
+    return np.vstack((np.hstack((R, (V@t)[:,None])), np.array([[0, 0, 0, 1]])))
+
+
+def se3_logmap(T):
+    """SE(3) logarithm map T -> v
+    
+    Parameters
+    ----------
+    T : np.array (4 x 4)
+        Rotation matrix (in SE(3))
+
+    Returns
+    -------
+    v : np.array (6)
+        Parameterized rotation (in se(3))
+    
+    """
+    R = T[:3, :3]
+    t = T[:3, 3]
+
+    w = so3_logmap(R)
+    theta = np.linalg.norm(w)
+
+    V = np.eye(3) + ((1-np.cos(theta))/theta**2) * skew(w) + ((theta-np.sin(theta))/theta**3) * np.linalg.matrix_power(skew(w), 2)
+
+    return np.hstack((np.linalg.inv(V)@t, w))
+
+
 def line_plane_intersection(plane, line):
     """Compute the intersection of an infinite line with infinite plane
 
