@@ -153,16 +153,42 @@ class PoseGraph:
         return poses
 
 
-    def optimize(self):
+    def optimize(self, window=None, suppress_output=True):
         """Optimize the pose graph
+
+        Parameters
+        ----------
+        window : tuple (start, end)
+            Window of poses to optimize
+        suppress_output : bool
+            Suppress output from optimizer
 
         """
         # Link edges before calling optimize
         self.graph._link_edges()
-        # # Suppress output
-        # with SuppressPrint():
-        #     self.graph.optimize()
-        self.graph.optimize()
+
+        # Fix nodes outside window
+        if window is not None:
+            for v in self.graph._vertices:
+                if v.id < 0:
+                    v.fixed = True
+                elif v.id < window[0] or v.id > window[1]:
+                    v.fixed = True
+                else:
+                    v.fixed = False
+
+        # Suppress output
+        if suppress_output:
+            with SuppressPrint():
+                self.graph.optimize()
+
+        # Unfix nodes
+        if window is not None:
+            for v in self.graph._vertices:
+                if v.id < 0:
+                    v.fixed = True
+                else:
+                    v.fixed = False
 
 
     def plot_trace(self, marker_size=5, edge_width=5):
