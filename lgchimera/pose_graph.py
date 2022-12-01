@@ -153,6 +153,26 @@ class PoseGraph:
         return poses
 
 
+    def trim_window(self, window_len):
+        """Maintain fixed window size
+
+        Assumes graph has window_len + 1 nodes
+
+        Parameters
+        ----------
+        window_len : int
+            Window length
+
+        """
+        # Remove first node (and its GPS node)
+        del self.graph._vertices[0]
+        del self.graph._vertices[window_len]
+
+        # Remove associated edges
+        del self.graph._edges[0]
+        del self.graph._edges[window_len-1]
+
+
     def optimize(self, window=None, suppress_output=True):
         """Optimize the pose graph
 
