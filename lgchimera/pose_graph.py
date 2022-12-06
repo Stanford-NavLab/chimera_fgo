@@ -166,11 +166,11 @@ class PoseGraph:
         """
         # Remove first node (and its GPS node)
         del self.graph._vertices[0]
-        del self.graph._vertices[window_len]
+        del self.graph._vertices[0]
 
         # Remove associated edges
         del self.graph._edges[0]
-        del self.graph._edges[window_len-1]
+        del self.graph._edges[0]
 
 
     def optimize(self, window=None, suppress_output=True):
@@ -188,14 +188,14 @@ class PoseGraph:
         self.graph._link_edges()
 
         # Fix nodes outside window
-        if window is not None:
-            for v in self.graph._vertices:
-                if v.id < 0:
-                    v.fixed = True
-                elif v.id < window[0] or v.id > window[1]:
-                    v.fixed = True
-                else:
-                    v.fixed = False
+        # if window is not None:
+        #     for v in self.graph._vertices:
+        #         if v.id < 0:
+        #             v.fixed = True
+        #         elif v.id < window[0] or v.id > window[1]:
+        #             v.fixed = True
+        #         else:
+        #             v.fixed = False
 
         # Suppress output
         if suppress_output:
