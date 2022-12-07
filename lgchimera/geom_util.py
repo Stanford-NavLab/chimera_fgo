@@ -228,12 +228,12 @@ def se3_expmap(v):
     Parameters
     ----------
     v : np.array (6)
-        Parameterized rotation (in se(3))
+        Parameterized transformation (in se(3))
 
     Returns
     -------
-    R : np.array (4 x 4)
-        Rotation matrix (in SE(3))
+    np.array (4 x 4)
+        Transformation matrix (in SE(3))
     
     """
     t = v[:3]
@@ -256,12 +256,12 @@ def se3_logmap(T):
     Parameters
     ----------
     T : np.array (4 x 4)
-        Rotation matrix (in SE(3))
+        Transformation matrix (in SE(3))
 
     Returns
     -------
     v : np.array (6)
-        Parameterized rotation (in se(3))
+        Parameterized transformation (in se(3))
     
     """
     R = T[:3, :3]
@@ -270,7 +270,10 @@ def se3_logmap(T):
     w = so3_logmap(R)
     theta = np.linalg.norm(w)
 
-    V = np.eye(3) + ((1-np.cos(theta))/theta**2) * skew(w) + ((theta-np.sin(theta))/theta**3) * np.linalg.matrix_power(skew(w), 2)
+    if theta == 0:
+        V = np.eye(3)
+    else:
+        V = np.eye(3) + ((1-np.cos(theta))/theta**2) * skew(w) + ((theta-np.sin(theta))/theta**3) * np.linalg.matrix_power(skew(w), 2)
 
     return np.hstack((np.linalg.inv(V)@t, w))
 
