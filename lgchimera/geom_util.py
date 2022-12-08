@@ -212,7 +212,8 @@ def so3_logmap(R):
         Parameterized rotation (in so(3))
     
     """
-    theta = np.arccos((np.trace(R) - 1) / 2)
+    print((np.trace(R) - 1) / 2)
+    theta = np.arccos(np.clip((np.trace(R) - 1) / 2, -1, 1))
     if theta == 0:
         w = np.zeros(3)
     else:
