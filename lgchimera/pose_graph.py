@@ -261,19 +261,21 @@ class PoseGraph:
     def test_statistic(self):
         """Compute test statistic for spoofing detection
 
+        Test statistic is the sum of the residuals over GPS factors
+
         Returns
         -------
         q : float
             Test statistic 
 
         """
-        # Link edges before plotting
+        # Link edges before computation
         self.graph._link_edges()
 
         # Compute test statistic
         q = 0
         for e in self.graph._edges:
-            if e.vertex_ids[0] > 0:
+            if e.vertex_ids[0] < 0:
                 q += e.calc_chi2()
         return q
         
