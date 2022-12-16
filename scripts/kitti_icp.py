@@ -82,7 +82,7 @@ for i in range(N):
 
 # ----------------------- Save registration results to file ----------------------- #
 data_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'results', 'p2pl_icp')
-np.save(os.path.join(data_path, 'lidar_Rs_start_1550_ds_1.npy'), np.array(lidar_Rs))
-np.save(os.path.join(data_path, 'lidar_ts_start_1550_ds_1.npy'), np.array(lidar_ts))
-np.save(os.path.join(data_path, 'positions_start_1550_ds_1.npy'), positions)
-np.save(os.path.join(data_path, 'covariances_start_1550_ds_1.npy'), np.array(lidar_covariances))
+np.save(os.path.join(data_path, 'lidar_Rs_start_1550_ds_10.npy'), np.array(lidar_Rs))
+np.save(os.path.join(data_path, 'lidar_ts_start_1550_ds_10.npy'), np.array(lidar_ts))
+np.save(os.path.join(data_path, 'positions_start_1550_ds_10.npy'), positions)
+np.save(os.path.join(data_path, 'covariances_start_1550_ds_10.npy'), np.array(lidar_covariances))

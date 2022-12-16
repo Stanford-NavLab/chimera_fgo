@@ -54,9 +54,9 @@ class EdgePosition(BaseEdge):
             The error for the edge
 
         """
-        print("calc error")
-        print(self.estimate)
-        print(self.vertices[0].pose)
+        # print("calc error")
+        # print(self.estimate)
+        # print(self.vertices[0].pose)
         #return (self.estimate - (self.vertices[1].pose - self.vertices[0].pose)).to_compact()
         #return np.hstack((self.estimate - (self.vertices[1].pose[:3].to_array() - self.vertices[0].pose[:3].to_array()), np.zeros(3)))
         return np.hstack((self.estimate - self.vertices[0].pose[:3].to_array(), np.zeros(3)))
@@ -73,7 +73,7 @@ class EdgePosition(BaseEdge):
             The Jacobian matrices for the edge with respect to each constrained pose
 
         """
-        print("HELLO")
+        #print("HELLO")
         # print([np.dot(np.dot(self.estimate.jacobian_self_ominus_other_wrt_other_compact(self.vertices[1].pose - self.vertices[0].pose), self.vertices[1].pose.jacobian_self_ominus_other_wrt_other(self.vertices[0].pose)), self.vertices[0].pose.jacobian_boxplus()),
         #         np.dot(np.dot(self.estimate.jacobian_self_ominus_other_wrt_other_compact(self.vertices[1].pose - self.vertices[0].pose), self.vertices[1].pose.jacobian_self_ominus_other_wrt_self(self.vertices[0].pose)), self.vertices[1].pose.jacobian_boxplus())])
         Ji = np.zeros((6,6))

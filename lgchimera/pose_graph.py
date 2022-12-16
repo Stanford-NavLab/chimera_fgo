@@ -181,7 +181,7 @@ class PoseGraph:
         del self.graph._edges[0]
 
 
-    def optimize(self, window=None, suppress_output=True):
+    def optimize(self, max_iter=20, window=None, suppress_output=True):
         """Optimize the pose graph
 
         Parameters
@@ -208,9 +208,9 @@ class PoseGraph:
         # Suppress output
         if suppress_output:
             with SuppressPrint():
-                self.graph.optimize()
+                self.graph.optimize(max_iter)
         else:
-            self.graph.optimize()
+            self.graph.optimize(max_iter)
 
         # Unfix nodes
         if window is not None:
