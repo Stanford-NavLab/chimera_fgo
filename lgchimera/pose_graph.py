@@ -9,10 +9,12 @@ from graphslam.graph import Graph
 from graphslam.vertex import Vertex
 from graphslam.edge.edge_odometry import EdgeOdometry
 from graphslam.pose.se3 import PoseSE3
+from graphslam.pose.r3 import PoseR3
 import plotly.graph_objects as go
 
 from lgchimera.geom_util import R_to_quat, quat_to_R
 from lgchimera.general import SuppressPrint
+from lgchimera.edge_position import EdgePosition
 
 
 class PoseGraph:
@@ -94,13 +96,19 @@ class PoseGraph:
             Tuple of rotation and translation
         
         """
-        # Factor vertex
-        p = PoseSE3(pose[1], R_to_quat(pose[0]))
-        v = Vertex(-id, p, fixed=True)
-        self.graph._vertices.append(v)
+        # # Factor vertex
+        # p = PoseSE3(pose[1], R_to_quat(pose[0]))
+        # v = Vertex(-id, p, fixed=True)
+        # self.graph._vertices.append(v)
+        # # Factor edge
+        # #estimate = PoseR3(np.zeros(3))
+        # estimate = PoseSE3(np.zeros(3), np.array([0,0,0,1]))
+        # e = EdgePosition([-id, id], information, estimate)
+        # self.graph._edges.append(e)
+
         # Factor edge
-        estimate = PoseSE3(np.zeros(3), np.array([0, 0, 0, 1]))
-        e = EdgeOdometry([-id, id], information, estimate)
+        estimate = PoseR3(pose[1])
+        e = EdgePosition([id], information, estimate)
         self.graph._edges.append(e)
 
 
@@ -166,7 +174,7 @@ class PoseGraph:
         """
         # Remove first node (and its GPS node)
         del self.graph._vertices[0]
-        del self.graph._vertices[0]
+        #del self.graph._vertices[0]
 
         # Remove associated edges
         del self.graph._edges[0]
@@ -201,6 +209,8 @@ class PoseGraph:
         if suppress_output:
             with SuppressPrint():
                 self.graph.optimize()
+        else:
+            self.graph.optimize()
 
         # Unfix nodes
         if window is not None:

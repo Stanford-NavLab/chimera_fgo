@@ -73,7 +73,7 @@ def p2pl_ICP(source, target, threshold, trans_init):
     return reg_p2pl, eval_time
 
 
-def p2pl_ICP_with_covariance(source, target, threshold, trans_init):
+def p2pl_ICP_with_covariance(source, target, threshold, trans_init, sigma=0.02, bias=0.05, Q_ini=0.1*np.eye(6)):
     """Point-to-Plane ICP with covariance
     
     Parameters
@@ -85,11 +85,6 @@ def p2pl_ICP_with_covariance(source, target, threshold, trans_init):
     reg_p2pl = o3d.pipelines.registration.registration_icp(
         source, target, threshold, trans_init,
         o3d.pipelines.registration.TransformationEstimationPointToPlane())
-
-    # Covariance estimation (Brossard)
-    # Parameters
-    sigma = 0.02
-    bias = 0.05
 
     # Sensor uncertainty term
     T_rel = reg_p2pl.transformation 
@@ -111,7 +106,6 @@ def p2pl_ICP_with_covariance(source, target, threshold, trans_init):
 
     # Initialization noise term
     T_ini = trans_init
-    Q_ini = np.eye(6)  # TODO: set this
     T_icp = T_rel
 
     # Set sigma points
@@ -134,4 +128,4 @@ def p2pl_ICP_with_covariance(source, target, threshold, trans_init):
     # Compute covariance 
     Q_init = (v_icp.T @ v_icp) / 12
     
-    return reg_p2pl, Q_sensor + Q_init
+    return reg_p2pl, Q_sensor, Q_init

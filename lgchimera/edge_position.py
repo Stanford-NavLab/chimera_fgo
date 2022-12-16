@@ -29,7 +29,7 @@ class EdgePosition(BaseEdge):
         A list of the vertices constrained by the edge
     information : np.ndarray
         The information matrix :math:`\Omega_j` associated with the edge
-    estimate : BasePose
+    estimate : PoseR3
         The expected measurement :math:`\mathbf{z}_j`
 
     Attributes
@@ -38,7 +38,7 @@ class EdgePosition(BaseEdge):
         A list of the vertices constrained by the edge
     information : np.ndarray
         The information matrix :math:`\Omega_j` associated with the edge
-    estimate : BasePose
+    estimate : PoseR3
         The expected measurement :math:`\mathbf{z}_j`
     
     """
@@ -54,7 +54,12 @@ class EdgePosition(BaseEdge):
             The error for the edge
 
         """
-        return self.estimate - (self.vertices[1].pose[:3] - self.vertices[0].pose[:3])
+        print("calc error")
+        print(self.estimate)
+        print(self.vertices[0].pose)
+        #return (self.estimate - (self.vertices[1].pose - self.vertices[0].pose)).to_compact()
+        #return np.hstack((self.estimate - (self.vertices[1].pose[:3].to_array() - self.vertices[0].pose[:3].to_array()), np.zeros(3)))
+        return np.hstack((self.estimate - self.vertices[0].pose[:3].to_array(), np.zeros(3)))
 
 
     def calc_jacobians(self):
@@ -68,38 +73,16 @@ class EdgePosition(BaseEdge):
             The Jacobian matrices for the edge with respect to each constrained pose
 
         """
-        return [np.dot(np.dot(self.estimate.jacobian_self_ominus_other_wrt_other_compact(self.vertices[1].pose - self.vertices[0].pose), self.vertices[1].pose.jacobian_self_ominus_other_wrt_other(self.vertices[0].pose)), self.vertices[0].pose.jacobian_boxplus()),
-                np.dot(np.dot(self.estimate.jacobian_self_ominus_other_wrt_other_compact(self.vertices[1].pose - self.vertices[0].pose), self.vertices[1].pose.jacobian_self_ominus_other_wrt_self(self.vertices[0].pose)), self.vertices[1].pose.jacobian_boxplus())]
+        print("HELLO")
+        # print([np.dot(np.dot(self.estimate.jacobian_self_ominus_other_wrt_other_compact(self.vertices[1].pose - self.vertices[0].pose), self.vertices[1].pose.jacobian_self_ominus_other_wrt_other(self.vertices[0].pose)), self.vertices[0].pose.jacobian_boxplus()),
+        #         np.dot(np.dot(self.estimate.jacobian_self_ominus_other_wrt_other_compact(self.vertices[1].pose - self.vertices[0].pose), self.vertices[1].pose.jacobian_self_ominus_other_wrt_self(self.vertices[0].pose)), self.vertices[1].pose.jacobian_boxplus())])
+        Ji = np.zeros((6,6))
+        Ji[:3,:3] = -np.eye(3)
+        Jj = np.zeros((6,6))
+        #Jj[:3,:3] = np.eye(3)
+        return [Ji]
+        #return [A, np.eye(6)]
 
-
-    def calc_chi2_loss(self, pose_0=None, pose_1=None):
-        _, pose_0 = self.assign_pose(pose_0, 0)
-        _, pose_1 = self.assign_pose(pose_1, 1)
-        err = (self.estimate - (pose_1 - pose_0)).to_compact()
-        chi2_loss = np.dot(np.dot(err, self.information), err)
-        return chi2_loss
-
-
-    def calc_chi2_gradient(self, pose_0=None, pose_1=None):
-        _, pose_0 = self.assign_pose(pose_0, 0)
-        _, pose_1 = self.assign_pose(pose_1, 1)
-        err = (self.estimate - (pose_0 - pose_1)).to_compact()
-        j_wrt_p0 = np.dot(np.dot(self.estimate.jacobian_self_ominus_other_wrt_other_compact(pose_1 - pose_0), pose_1.jacobian_self_ominus_other_wrt_other(pose_0)), pose_0.jacobian_boxplus())
-        j_wrt_p1 = np.dot(np.dot(self.estimate.jacobian_self_ominus_other_wrt_other_compact(pose_1 - pose_0), pose_1.jacobian_self_ominus_other_wrt_self(pose_0)), pose_1.jacobian_boxplus())
-        #TODO: Make this more compact
-        grad_p0 = 2*np.dot(np.dot(err, self.information), j_wrt_p0)
-        grad_p1 = 2*np.dot(np.dot(err, self.information), j_wrt_p1)
-        grad = [grad_p0, grad_p1]
-        return grad
-
-
-    def calc_chi2_hessian(self, pose_0=None, pose_1=None):
-        pose_0 = self.assign_pose(pose_0, 0)
-        pose_1 = self.assign_pose(pose_1, 1)
-        jacobians = self.calc_chi2_gradient(pose_0, pose_1)
-        h_wrt_00 = np.dot(np.dot(np.transpose(jacobians[0]), self.information), jacobians[0])
-        h_wrt_01 = np.dot(np.dot(np.transpose(jacobians[0]), self.information), jacobians[1])
-        h_wrt_10 = np.dot(np.dot(np.transpose(jacobians[1]), self.information), jacobians[0])
-        h_wrt_11 = np.dot(np.dot(np.transpose(jacobians[1]), self.information), jacobians[1])
-        hessians = [h_wrt_00, h_wrt_01, h_wrt_10, h_wrt_11]
-        return hessians
+    
+    # def calc_chi2_gradient_hessian(self):
+    #     pass
