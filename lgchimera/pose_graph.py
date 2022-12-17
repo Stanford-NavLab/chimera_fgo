@@ -96,20 +96,21 @@ class PoseGraph:
             Tuple of rotation and translation
         
         """
-        # # Factor vertex
-        # p = PoseSE3(pose[1], R_to_quat(pose[0]))
-        # v = Vertex(-id, p, fixed=True)
-        # self.graph._vertices.append(v)
-        # # Factor edge
-        # #estimate = PoseR3(np.zeros(3))
-        # estimate = PoseSE3(np.zeros(3), np.array([0,0,0,1]))
-        # e = EdgePosition([-id, id], information, estimate)
-        # self.graph._edges.append(e)
-
+        # "Fake" GPS node
+        # Factor vertex
+        p = PoseSE3(pose[1], R_to_quat(pose[0]))
+        v = Vertex(-id, p, fixed=True)
+        self.graph._vertices.append(v)
         # Factor edge
-        estimate = PoseR3(pose[1])
-        e = EdgePosition([id], information, estimate)
+        #estimate = PoseR3(np.zeros(3))
+        estimate = PoseSE3(np.zeros(3), np.array([0,0,0,1]))
+        e = EdgePosition([-id, id], information, estimate)
         self.graph._edges.append(e)
+
+        # # Dangling factor
+        # estimate = PoseR3(pose[1])
+        # e = EdgePosition([id], information, estimate)
+        # self.graph._edges.append(e)
 
 
     def get_positions(self):
@@ -174,7 +175,7 @@ class PoseGraph:
         """
         # Remove first node (and its GPS node)
         del self.graph._vertices[0]
-        #del self.graph._vertices[0]
+        del self.graph._vertices[0]
 
         # Remove associated edges
         del self.graph._edges[0]
@@ -208,17 +209,17 @@ class PoseGraph:
         # Suppress output
         if suppress_output:
             with SuppressPrint():
-                self.graph.optimize(max_iter)
+                self.graph.optimize(max_iter=max_iter)
         else:
-            self.graph.optimize(max_iter)
+            self.graph.optimize(max_iter=max_iter)
 
         # Unfix nodes
-        if window is not None:
-            for v in self.graph._vertices:
-                if v.id < 0:
-                    v.fixed = True
-                else:
-                    v.fixed = False
+        # if window is not None:
+        #     for v in self.graph._vertices:
+        #         if v.id < 0:
+        #             v.fixed = True
+        #         else:
+        #             v.fixed = False
 
 
     def plot_trace(self, marker_size=5, edge_width=5):
