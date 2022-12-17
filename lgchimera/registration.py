@@ -128,4 +128,4 @@ def p2pl_ICP_with_covariance(source, target, threshold, trans_init, sigma=0.02, 
     # Compute covariance 
     Q_init = (v_icp.T @ v_icp) / 12
     
-    return reg_p2pl, Q_sensor, Q_init
+    return reg_p2pl, Q_sensor + Q_init
