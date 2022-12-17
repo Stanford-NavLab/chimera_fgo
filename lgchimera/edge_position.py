@@ -58,8 +58,12 @@ class EdgePosition(BaseEdge):
         # print(self.estimate)
         # print(self.vertices[0].pose)
         #return (self.estimate - (self.vertices[1].pose - self.vertices[0].pose)).to_compact()
-        #return np.hstack((self.estimate - (self.vertices[1].pose[:3].to_array() - self.vertices[0].pose[:3].to_array()), np.zeros(3)))
-        return np.hstack((self.estimate - self.vertices[0].pose[:3].to_array(), np.zeros(3)))
+
+        # Using "fake" GPS node
+        return np.hstack(((self.estimate - (self.vertices[1].pose - self.vertices[0].pose))[:3].to_array(), np.zeros(3)))
+
+        # Assuming dangling factor
+        #return np.hstack((self.estimate - self.vertices[0].pose[:3].to_array(), np.zeros(3)))
 
 
     def calc_jacobians(self):
@@ -76,12 +80,21 @@ class EdgePosition(BaseEdge):
         #print("HELLO")
         # print([np.dot(np.dot(self.estimate.jacobian_self_ominus_other_wrt_other_compact(self.vertices[1].pose - self.vertices[0].pose), self.vertices[1].pose.jacobian_self_ominus_other_wrt_other(self.vertices[0].pose)), self.vertices[0].pose.jacobian_boxplus()),
         #         np.dot(np.dot(self.estimate.jacobian_self_ominus_other_wrt_other_compact(self.vertices[1].pose - self.vertices[0].pose), self.vertices[1].pose.jacobian_self_ominus_other_wrt_self(self.vertices[0].pose)), self.vertices[1].pose.jacobian_boxplus())])
+        # self_vertices_1 = PoseSE3(np.zeros(3), np.zeros(4))
+        # self_estimate = PoseSE3(self.estimate, np.zeros(4))
+        # print([np.dot(np.dot(self_estimate.jacobian_self_ominus_other_wrt_other_compact(self_vertices_1 + self.vertices[0].pose), self_vertices_1.jacobian_self_ominus_other_wrt_other(-self.vertices[0].pose)), -self.vertices[0].pose.jacobian_boxplus())])
+        
+        # Fake GPS node
         Ji = np.zeros((6,6))
-        Ji[:3,:3] = -np.eye(3)
+        Ji[:3,:3] = np.eye(3)
         Jj = np.zeros((6,6))
-        #Jj[:3,:3] = np.eye(3)
-        return [Ji]
-        #return [A, np.eye(6)]
+        Jj[:3,:3] = -np.eye(3)
+        return [Ji, Jj]
+
+        # # Dangling factor
+        # Ji = np.zeros((6,6))
+        # Ji[:3,:3] = -np.eye(3)
+        # return [Ji]
 
     
     # def calc_chi2_gradient_hessian(self):
