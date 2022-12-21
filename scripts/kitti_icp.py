@@ -6,8 +6,16 @@ from lgchimera.general import lla_to_ecef, ecef2enu
 from lgchimera.io import read_lidar_bin, read_gt
 from lgchimera.registration import initialize_source_and_target, p2pl_ICP_with_covariance
 
+# ----------------------- Parameters ----------------------- #
+kitti_seq = '2011_10_03_drive_0034_sync'
+start_idx = 0
+ds_rate = 10
+Q_ini_scale = 0.01
 
-kitti_seq = '2011_09_30_drive_0028_sync'
+# ----------------------- Check if output data path exists ----------------------- #
+data_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'results', 'p2pl_icp')
+if not os.path.exists(data_path):
+    print("Output data path does not exist!")
 
 # ----------------------- Read lidar point clouds ----------------------- #
 print("Loading LiDAR data...")
@@ -15,12 +23,9 @@ binpath = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'velodyne_
 PC_data_all = read_lidar_bin(binpath)
 
 # ----------------------- Select data ----------------------- #
-start_idx = 1550
-#start_idx = 0
 PC_data = PC_data_all[start_idx:]
 
 # ----------------------- Downsample points ----------------------- #
-ds_rate = 10
 PC_data = [pc[::ds_rate] for pc in PC_data]
 
 # ----------------------- Read ground-truth data ----------------------- #
@@ -39,7 +44,6 @@ for i in range(len(lla)):
 
 gt_ecef = gt_ecef[:,[1,0,2]]
 
-
 # ----------------------- Get initial heading ----------------------- #
 heading = gt_data[0][5] # heading angle
 r = R.from_euler('XYZ', [0, 0, heading])
@@ -47,7 +51,6 @@ R_heading = r.as_matrix()
 
 # ----------------------- Run ICP ----------------------- #
 N = len(PC_data)
-#N = 1000
 R_abs = R_heading
 t_abs = gt_ecef[0].copy()
 poses = N * [None]
@@ -62,11 +65,11 @@ for i in range(1,N):
     trans_init = np.eye(4)
     threshold = 1
     source, target = initialize_source_and_target(PC_data[i], PC_data[i-1])
-    reg_p2p, covariance = p2pl_ICP_with_covariance(source, target, threshold, trans_init)
+    reg_p2p, covariance = p2pl_ICP_with_covariance(source, target, threshold, trans_init, Q_ini=Q_ini_scale*np.eye(6))
     R_hat = reg_p2p.transformation[:3,:3]
     t_hat = reg_p2p.transformation[:3,3]
 
-    print(covariance)
+    #print(covariance)
 
     lidar_Rs.append(R_hat)
     lidar_ts.append(t_hat)
@@ -81,8 +84,8 @@ for i in range(N):
     positions[i] = poses[i][1]
 
 # ----------------------- Save registration results to file ----------------------- #
-data_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'results', 'p2pl_icp')
-np.save(os.path.join(data_path, 'lidar_Rs_start_1550_ds_10_Q_ini_0.1.npy'), np.array(lidar_Rs))
-np.save(os.path.join(data_path, 'lidar_ts_start_1550_ds_10_Q_ini_0.1.npy'), np.array(lidar_ts))
-np.save(os.path.join(data_path, 'positions_start_1550_ds_10_Q_ini_0.1.npy'), positions)
-np.save(os.path.join(data_path, 'covariances_start_1550_ds_10_Q_ini_0.1.npy'), np.array(lidar_covariances))
+run_name = 'start_{}_ds_{}_Q_ini_{}'.format(start_idx, ds_rate, Q_ini_scale)
+np.save(os.path.join(data_path, 'lidar_Rs_'+run_name+'.npy'), np.array(lidar_Rs))
+np.save(os.path.join(data_path, 'lidar_ts_'+run_name+'.npy'), np.array(lidar_ts))
+np.save(os.path.join(data_path, 'positions_'+run_name+'.npy'), positions)
+np.save(os.path.join(data_path, 'covariances_'+run_name+'.npy'), np.array(lidar_covariances))

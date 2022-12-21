@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 from lgchimera.geom_util import R_to_quat, quat_to_R
 from lgchimera.general import SuppressPrint
 from lgchimera.edge_position import EdgePosition
+from lgchimera.my_graph import MyGraph
 
 
 class PoseGraph:
@@ -45,7 +46,7 @@ class PoseGraph:
         Initialize a PoseGraph (default empty)
 
         """
-        self.graph = Graph([], [])
+        self.graph = MyGraph([], [])
         # self.graph._edges = edges
         # self.graph._vertices = vertices
         
@@ -96,15 +97,15 @@ class PoseGraph:
             Tuple of rotation and translation
         
         """
-        # "Fake" GPS node
+        # "Fake" GPS node with R3 edge
         # Factor vertex
         p = PoseSE3(pose[1], R_to_quat(pose[0]))
         v = Vertex(-id, p, fixed=True)
         self.graph._vertices.append(v)
         # Factor edge
-        #estimate = PoseR3(np.zeros(3))
         estimate = PoseSE3(np.zeros(3), np.array([0,0,0,1]))
         e = EdgePosition([-id, id], information, estimate)
+        #e = EdgeOdometry([-id, id], information, estimate)
         self.graph._edges.append(e)
 
         # # Dangling factor
@@ -162,7 +163,7 @@ class PoseGraph:
         return poses
 
 
-    def trim_window(self, window_len):
+    def trim_window(self, n=1):
         """Maintain fixed window size
 
         Assumes graph has window_len + 1 nodes
@@ -173,13 +174,12 @@ class PoseGraph:
             Window length
 
         """
-        # Remove first node (and its GPS node)
-        del self.graph._vertices[0]
-        del self.graph._vertices[0]
+        for i in range(n+1):
+            # Remove first node (and its GPS node)
+            del self.graph._vertices[0]
 
-        # Remove associated edges
-        del self.graph._edges[0]
-        del self.graph._edges[0]
+            # Remove associated edges
+            del self.graph._edges[0]
 
 
     def optimize(self, max_iter=20, window=None, suppress_output=True):
