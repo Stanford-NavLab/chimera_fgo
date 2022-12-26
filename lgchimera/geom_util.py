@@ -131,7 +131,10 @@ def quat_to_R(quat):
         Rotation matrix
 
     """
-    r = R.from_quat(quat)
+    try:
+        r = R.from_quat(quat)
+    except ValueError:
+        print("ValueError: ", quat)
     return r.as_matrix()
 
 

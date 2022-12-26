@@ -63,7 +63,7 @@ lidar_covariances = []
 for i in range(1,N):
     print(i, "/", N)
     trans_init = np.eye(4)
-    threshold = 1
+    threshold = 1.0
     source, target = initialize_source_and_target(PC_data[i], PC_data[i-1])
     reg_p2p, covariance = p2pl_ICP_with_covariance(source, target, threshold, trans_init, Q_ini=Q_ini_scale*np.eye(6))
     R_hat = reg_p2p.transformation[:3,:3]

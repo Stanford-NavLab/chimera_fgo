@@ -163,28 +163,6 @@ class PoseGraph:
         return poses
 
 
-    def set_factor_informations(self, start, end, information):
-        """Set information matrices for factors in idx range
-
-        Parameters
-        ----------
-        start : int
-            Start index
-        end : int
-            End index
-        information : np.array (6 x 6)
-            Information matrix
-
-        """
-        print("Setting factor information from {} to {}".format(start, end))
-        self.graph._link_edges()
-        for e in self.graph._edges:
-            v1_id = -e.vertices[0].id
-            if v1_id > start and v1_id < end:
-                print(v1_id, end=" ")
-                e.information = information
-
-
     def trim_window(self, n=1):
         """Maintain fixed window size
 
@@ -301,17 +279,25 @@ class PoseGraph:
         self.graph._link_edges()
 
         # Compute test statistic
-        q_gps = 0
-        q_lidar = 0
+        q = 0
+
+        # Debugging: look at translation and rotational components
+        q_tran = 0
+        q_rot = 0
 
         for e in self.graph._edges:
-            chi2 = e.calc_chi2()
-            if e.vertex_ids[0] < 0:   # GPS edges
-                q_gps += chi2
-            else:   # Lidar edges
-                q_lidar += chi2
+            #if e.vertex_ids[0] < 0:   # GPS edges
+            if e.vertex_ids[0] > 0:   # Lidar edges
+                q += e.calc_chi2()
 
-        return q_gps, q_lidar
+                # Debugging
+                err = e.calc_error()
+                q_tran += sum(err[:3]**2)
+                q_rot += sum(err[3:]**2)
+
+        print("q_rot: ", q_rot)
+        print("q_tran: ", q_tran)
+        return q, q_tran, q_rot
         
 
     def detect_loop_closures(self):
