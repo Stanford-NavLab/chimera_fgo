@@ -11,6 +11,10 @@ from collections import defaultdict
 from scipy.sparse import lil_matrix
 from functools import reduce
 
+import time
+from numba import njit
+from numba.experimental import jitclass
+
 
 # pylint: disable=too-few-public-methods
 class _Chi2GradientHessian:
@@ -103,6 +107,7 @@ class MyGraph(Graph):
                 self._hessian[col_idx * dim: (col_idx + 1) * dim, row_idx * dim: (row_idx + 1) * dim] = np.transpose(contrib)
 
 
+
     def optimize(self, tol=1e-4, max_iter=20, fix_first_pose=True, verbose=False):
         r"""Optimize the :math:`\chi^2` error for the ``Graph``.
 
@@ -132,8 +137,14 @@ class MyGraph(Graph):
             print("\nIteration                chi^2        rel. change")
             print("---------                -----        -----------")
 
+        # DEBUG: calc hessian and spsolve timing
+        calc_time = 0
+        solve_time = 0
+
         for i in range(max_iter):
+            start_time = time.time()
             self._calc_chi2_gradient_hessian()
+            calc_time += time.time() - start_time
 
             # Check for convergence (from the previous iteration); this avoids having to calculate chi^2 twice
             if i > 0:
@@ -141,6 +152,8 @@ class MyGraph(Graph):
                 if verbose:
                     print("{:9d} {:20.4f} {:18.6f}".format(i, self._chi2, -rel_diff))
                 if self._chi2 < chi2_prev and rel_diff < tol:
+                    print("Calc time: ", calc_time)
+                    print("Solve time: ", solve_time)
                     return
             else:
                 if verbose:
@@ -160,7 +173,9 @@ class MyGraph(Graph):
             #     print("Matrix singular")
             # else:
             #     dx = spsolve(self._hessian, -self._gradient)  
+            start_time = time.time()
             dx = spsolve(self._hessian, -self._gradient)  # pylint: disable=invalid-unary-operand-type
+            solve_time += time.time() - start_time
 
             # Apply the updates
             for v, dx_i in zip(self._vertices, np.split(dx, n)):
@@ -171,3 +186,6 @@ class MyGraph(Graph):
         rel_diff = (chi2_prev - self._chi2) / (chi2_prev + np.finfo(float).eps)
         if verbose:
             print("{:9d} {:20.4f} {:18.6f}".format(max_iter, self._chi2, -rel_diff))
+        
+        print("Calc time: ", calc_time)
+        print("Solve time: ", solve_time)
