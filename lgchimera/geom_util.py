@@ -156,6 +156,22 @@ def R_to_quat(R_mat):
     return r.as_quat()
 
 
+def euler_to_R(euler):
+    """Convert euler angles to 3D rotation matrix 
+
+    Parameters
+    ----------
+    euler : np.array (1 x 3)
+        Euler angles in roll-pitch-yaw (x-y-z) order
+
+    Returns
+    -------
+    np.array (3 x 3)
+        Rotation matrix
+
+    """
+    return R.from_euler('XYZ', [euler[0], euler[1], euler[2]]).as_matrix()
+
 
 def skew(v):
     """Convert vector to skew symmetric matrix
