@@ -16,6 +16,7 @@ import symforce.symbolic as sf
 from symforce.values import Values
 from symforce import typing as T
 from symforce.opt.factor import Factor
+from symforce.opt.optimizer import Optimizer
 
 # -----------------------------------------------------------------------------
 # Residual functions
@@ -160,42 +161,41 @@ def build_factors(num_poses, num_satellites):
         )
 
 
-def factor_graph(sat_pos, ):
-    """Factor graph with range and odometry factors
+def fgo(gtpos, satpos, odom, odom_sigma, range_sigma):
+    """Factor graph optimization
 
     Parameters
     ----------
-    sat_pos : 
-
-    ranges : 
-
-
 
     """
-    values = Values()
-    initial_values = Values(
-        world_T_body=[sf.Pose3.identity()] * num_poses,
-        world_t_landmark=[sf.V3(s_pos[0]), sf.V3(s_pos[1]), sf.V3(s_pos[2])],
-        odometry=[sf.Pose3(R = sf.Rot3(), t = sf.V3(4, 3, 0)), 
-                sf.Pose3(R = sf.Rot3(), t = sf.V3(4, -1, 0))],
-        ranges=ranges.tolist(),
-        sigmas=sf.V6(1, 1, 1, 1, 1, 1),
-        epsilon=sf.numeric_epsilon,
+    N_POSES = len(gtpos)
+    N_SATS = len(satpos)
+
+    # Compute ranges
+    PR_SIGMA = 10
+    m_ranges = np.zeros((N_POSES, N_SATS))
+    for i in range(N_POSES):
+        for j in range(N_SATS):
+            m_ranges[i,j] = np.linalg.norm(gtpos[i] - satpos[j]) + np.random.normal(0, PR_SIGMA)
+
+    # Build values and factors
+    values = build_values(N_POSES, satpos, m_ranges, odom, 
+                        range_sigma, odom_sigma)
+    factors = build_factors(N_POSES, N_SATS)
+
+    # Select the keys to optimize - the rest will be held constant
+    optimized_keys = [f"poses[{i}]" for i in range(N_POSES)]
+
+    # Create the optimizer
+    optimizer = Optimizer(
+        factors=factors,
+        optimized_keys=optimized_keys,
+        # Return problem stats for every iteration
+        debug_stats=False,
+        # Customize optimizer behavior
+        params=Optimizer.Params(verbose=False, initial_lambda=1e4, lambda_down_factor=0.5),
     )
 
-    factors = []
-
-    # Range factors
-    for i in range(num_poses):
-        for j in range(num_satellites):
-            factors.append(Factor(
-                residual=range_residual,
-                keys=[f"world_T_body[{i}]", f"world_t_landmark[{j}]", f"ranges[{i}][{j}]", "epsilon"],
-            ))
-
-    # Odometry factors
-    for i in range(num_poses - 1):
-        factors.append(Factor(
-            residual=odometry_residual,
-            keys=[f"world_T_body[{i}]", f"world_T_body[{i + 1}]", f"odometry[{i}]", "sigmas", "epsilon"],
-        ))
+    # Solve and return the result
+    result = optimizer.optimize(values) 
+    return result
