@@ -5,8 +5,10 @@ Symforce functions for factor graph optimization.
 """
 
 import symforce
-
-symforce.set_epsilon_to_symbol()
+try:
+    symforce.set_epsilon_to_symbol()
+except symforce.AlreadyUsedEpsilon:
+    pass 
 
 import numpy as np
 
@@ -19,8 +21,11 @@ from symforce.opt.factor import Factor
 # Residual functions
 # -----------------------------------------------------------------------------
 def range_residual(
-    pose: sf.Pose3, satellite: sf.V3, range: sf.Scalar, epsilon: sf.Scalar
-) -> sf.V1:
+        pose: sf.Pose3, 
+        satellite: sf.V3, 
+        range: sf.Scalar, 
+        sigma: sf.Scalar, 
+        epsilon: sf.Scalar) -> sf.V1:
     """(Psuedo)range residual
 
     Parameters
@@ -31,6 +36,8 @@ def range_residual(
         Satellite position
     range : sf.Scalar
         Measured range
+    sigma : sf.Scalar
+        Standard deviation of range measurement
     epsilon : sf.Scalar
         Epsilon for numerical stability
     
@@ -40,7 +47,32 @@ def range_residual(
         Residual
 
     """
-    return sf.V1((pose.t - satellite).norm(epsilon=epsilon) - range)
+    return sf.V1((pose.t - satellite).norm(epsilon=epsilon) - range) / sigma
+
+
+def position_residual(
+        pose: sf.Pose3, 
+        m_pos: sf.V3, 
+        sigma: sf.V3, 
+        epsilon: sf.Scalar) -> sf.V3:
+    """Position measurement residual
+
+    Parameters
+    ----------
+    pose : sf.Pose3
+        Robot pose
+    m_pos : sf.V3
+        Position measurement
+    sigma : sf.V3
+        Diagonal covariance of measurements
+    
+    Returns
+    -------
+    sf.V3
+        Residual
+
+    """
+    return sf.V3(pose.t - m_pos) / sigma
 
 
 def odometry_residual(
@@ -67,19 +99,65 @@ def odometry_residual(
 # -----------------------------------------------------------------------------
 # Build values
 # -----------------------------------------------------------------------------
-def build_values(num_poses, satpos, m_ranges, m_odometry):
-    """
+def build_values(num_poses, satpos, m_ranges, m_odometry, range_sigma, odom_sigma):
+    """Build values for factor graph
+
+    Parameters
+    ----------
+    num_poses : int
+        Number of poses 
+    satpos : np.ndarray
+        Satellite positions
+    m_ranges : np.ndarray
+        Measured ranges
+    m_odometry : list of tuple (R, t)
+        Measured odometry
+
     """
     values = Values()
 
-    # Poses
     values["poses"] = [sf.Pose3.identity()] * num_poses
-
-    # Satellites
     values["satellites"] = [sf.V3(pos) for pos in satpos]
 
-    # Ranges
-    values["ranges"] = m_ranges
+    values["ranges"] = m_ranges.tolist()
+    values["odometry"] = [sf.Pose3(R = sf.Rot3.from_rotation_matrix(R), t = sf.V3(t)) for R, t in m_odometry]
+
+    values["range_sigma"] = range_sigma
+    values["odom_sigma"] = odom_sigma
+
+    values["epsilon"] = sf.numeric_epsilon
+
+    return values
+
+
+def build_factors(num_poses, num_satellites):
+    """Build range and odometry factors
+
+    """
+    for i in range(num_poses):
+        for j in range(num_satellites):
+            yield Factor(
+                residual=range_residual,
+                keys=[
+                    f"poses[{i}]",
+                    f"satellites[{j}]",
+                    f"ranges[{i}][{j}]",
+                    "range_sigma",
+                    "epsilon",
+                ],
+            )
+
+    for i in range(num_poses - 1):
+        yield Factor(
+            residual=odometry_residual,
+            keys=[
+                f"poses[{i}]",
+                f"poses[{i + 1}]",
+                f"odometry[{i}]",
+                "odom_sigma",
+                "epsilon",
+            ],
+        )
 
 
 def factor_graph(sat_pos, ):

@@ -179,7 +179,8 @@ class MyGraph(Graph):
 
             # Apply the updates
             for v, dx_i in zip(self._vertices, np.split(dx, n)):
-                v.pose += dx_i
+                # NOTE: testing alpha term
+                v.pose += 0.1 * dx_i
 
         # If we reached the maximum number of iterations, print out the final iteration's results
         self.calc_chi2()
