@@ -131,11 +131,12 @@ def build_values(init_poses, satpos, m_ranges, m_odometry, range_sigma, odom_sig
     return values
 
 
-def build_factors(num_poses, num_satellites, gps_rate=1):
+def build_factors(num_poses, num_satellites, gps_rate=1, fix_first_pose=False):
     """Build range and odometry factors
 
     """
-    for i in range(0, num_poses, gps_rate):
+    start_idx = gps_rate if fix_first_pose else 0
+    for i in range(start_idx, num_poses, gps_rate):
         for j in range(num_satellites):
             yield Factor(
                 residual=range_residual,
@@ -161,7 +162,7 @@ def build_factors(num_poses, num_satellites, gps_rate=1):
         )
 
 
-def fgo(init_pos, sat_pos, m_ranges, odom, odom_sigma, range_sigma, gps_rate, fix_first_pose=False):
+def fgo(init_pos, sat_pos, m_ranges, odom, odom_sigma, range_sigma, gps_rate, fix_first_pose=False, debug=False):
     """Factor graph optimization
 
     Parameters
@@ -174,22 +175,20 @@ def fgo(init_pos, sat_pos, m_ranges, odom, odom_sigma, range_sigma, gps_rate, fi
     # Build values and factors
     values = build_values(init_pos, sat_pos, m_ranges, odom, 
                         range_sigma, odom_sigma)
-    factors = build_factors(N_POSES, N_SATS, gps_rate=gps_rate)
+    factors = build_factors(N_POSES, N_SATS, gps_rate=gps_rate, fix_first_pose=fix_first_pose)
 
     # Select the keys to optimize - the rest will be held constant
-    if fix_first_pose:
-        optimized_keys = [f"poses[{i}]" for i in range(1, N_POSES)]
-    else:
-        optimized_keys = [f"poses[{i}]" for i in range(N_POSES)]
+    start_idx = 1 if fix_first_pose else 0
+    optimized_keys = [f"poses[{i}]" for i in range(start_idx, N_POSES)]
 
     # Create the optimizer
     optimizer = Optimizer(
         factors=factors,
         optimized_keys=optimized_keys,
         # Return problem stats for every iteration
-        debug_stats=False,
+        debug_stats=debug,
         # Customize optimizer behavior
-        params=Optimizer.Params(verbose=False, initial_lambda=1e4, lambda_down_factor=0.5),
+        params=Optimizer.Params(verbose=debug, initial_lambda=1e4, lambda_down_factor=0.5),
     )
 
     # Solve and return the result
