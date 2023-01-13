@@ -100,7 +100,7 @@ def odometry_residual(
 # -----------------------------------------------------------------------------
 # Build values
 # -----------------------------------------------------------------------------
-def build_values(num_poses, satpos, m_ranges, m_odometry, range_sigma, odom_sigma):
+def build_values(init_poses, satpos, m_ranges, m_odometry, range_sigma, odom_sigma):
     """Build values for factor graph
 
     Parameters
@@ -117,7 +117,7 @@ def build_values(num_poses, satpos, m_ranges, m_odometry, range_sigma, odom_sigm
     """
     values = Values()
 
-    values["poses"] = [sf.Pose3.identity()] * num_poses
+    values["poses"] = init_poses
     values["satellites"] = [sf.V3(pos) for pos in satpos]
 
     values["ranges"] = m_ranges.tolist()
@@ -131,11 +131,11 @@ def build_values(num_poses, satpos, m_ranges, m_odometry, range_sigma, odom_sigm
     return values
 
 
-def build_factors(num_poses, num_satellites):
+def build_factors(num_poses, num_satellites, gps_rate=1):
     """Build range and odometry factors
 
     """
-    for i in range(num_poses):
+    for i in range(0, num_poses, gps_rate):
         for j in range(num_satellites):
             yield Factor(
                 residual=range_residual,
@@ -161,30 +161,26 @@ def build_factors(num_poses, num_satellites):
         )
 
 
-def fgo(gtpos, satpos, odom, odom_sigma, range_sigma):
+def fgo(init_pos, sat_pos, m_ranges, odom, odom_sigma, range_sigma, gps_rate, fix_first_pose=False):
     """Factor graph optimization
 
     Parameters
     ----------
 
     """
-    N_POSES = len(gtpos)
-    N_SATS = len(satpos)
-
-    # Compute ranges
-    PR_SIGMA = 10
-    m_ranges = np.zeros((N_POSES, N_SATS))
-    for i in range(N_POSES):
-        for j in range(N_SATS):
-            m_ranges[i,j] = np.linalg.norm(gtpos[i] - satpos[j]) + np.random.normal(0, PR_SIGMA)
+    N_POSES = len(init_pos)
+    N_SATS = len(sat_pos)
 
     # Build values and factors
-    values = build_values(N_POSES, satpos, m_ranges, odom, 
+    values = build_values(init_pos, sat_pos, m_ranges, odom, 
                         range_sigma, odom_sigma)
-    factors = build_factors(N_POSES, N_SATS)
+    factors = build_factors(N_POSES, N_SATS, gps_rate=gps_rate)
 
     # Select the keys to optimize - the rest will be held constant
-    optimized_keys = [f"poses[{i}]" for i in range(N_POSES)]
+    if fix_first_pose:
+        optimized_keys = [f"poses[{i}]" for i in range(1, N_POSES)]
+    else:
+        optimized_keys = [f"poses[{i}]" for i in range(N_POSES)]
 
     # Create the optimizer
     optimizer = Optimizer(
@@ -199,3 +195,5 @@ def fgo(gtpos, satpos, odom, odom_sigma, range_sigma):
     # Solve and return the result
     result = optimizer.optimize(values) 
     return result
+
+
