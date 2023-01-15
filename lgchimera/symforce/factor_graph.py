@@ -101,11 +101,32 @@ def orientation_residual(
     return sf.M.diag(sigma.to_flat_list()).inv() * sf.V3(tangent_error) 
 
 
+# def odometry_residual(
+#     world_T_a: sf.Pose3,
+#     world_T_b: sf.Pose3,
+#     a_T_b: sf.Pose3,
+#     diagonal_sigmas: sf.V6,
+#     epsilon: sf.Scalar,
+# ) -> sf.V6:
+#     """
+#     Residual on the relative pose between two timesteps of the robot.
+#     Args:
+#         world_T_a: First pose in the world frame
+#         world_T_b: Second pose in the world frame
+#         a_T_b: Relative pose measurement between the poses
+#         diagonal_sigmas: Diagonal standard deviation of the tangent-space error
+#         epsilon: Small number for singularity handling
+#     """
+#     a_T_b_predicted = world_T_a.inverse() * world_T_b
+#     tangent_error = a_T_b_predicted.local_coordinates(a_T_b, epsilon=epsilon)
+#     return T.cast(sf.V6, sf.M.diag(diagonal_sigmas.to_flat_list()).inv() * sf.V6(tangent_error))
+
+
 def odometry_residual(
     world_T_a: sf.Pose3,
     world_T_b: sf.Pose3,
     a_T_b: sf.Pose3,
-    diagonal_sigmas: sf.V6,
+    sigma: sf.Matrix66,
     epsilon: sf.Scalar,
 ) -> sf.V6:
     """
@@ -119,13 +140,13 @@ def odometry_residual(
     """
     a_T_b_predicted = world_T_a.inverse() * world_T_b
     tangent_error = a_T_b_predicted.local_coordinates(a_T_b, epsilon=epsilon)
-    return T.cast(sf.V6, sf.M.diag(diagonal_sigmas.to_flat_list()).inv() * sf.V6(tangent_error))
+    return T.cast(sf.V6, sigma.inv() * sf.V6(tangent_error))
 
 
 # -----------------------------------------------------------------------------
 # Build values
 # -----------------------------------------------------------------------------
-def build_values(init_poses, satpos, m_ranges, m_odometry, range_sigma, odom_sigma):
+def build_values(init_poses, satpos, m_ranges, m_odometry, range_sigma, odom_sigmas):
     """Build values for factor graph
 
     Parameters
@@ -149,7 +170,7 @@ def build_values(init_poses, satpos, m_ranges, m_odometry, range_sigma, odom_sig
     values["odometry"] = [sf.Pose3(R = sf.Rot3.from_rotation_matrix(R), t = sf.V3(t)) for R, t in m_odometry]
 
     values["range_sigma"] = range_sigma
-    values["odom_sigma"] = odom_sigma
+    values["odom_sigmas"] = odom_sigmas
 
     values["epsilon"] = sf.numeric_epsilon
 
@@ -181,7 +202,7 @@ def build_factors(num_poses, num_satellites, gps_rate=1, fix_first_pose=False):
                 f"poses[{i}]",
                 f"poses[{i + 1}]",
                 f"odometry[{i}]",
-                "odom_sigma",
+                f"odom_sigmas[{i}]",
                 "epsilon",
             ],
         )
@@ -260,7 +281,7 @@ def build_factors_att(num_poses, num_satellites, gps_rate=1, fix_first_pose=Fals
         )
 
 
-def fgo(init_pos, sat_pos, m_ranges, m_odom, range_sigma, odom_sigma, gps_rate, fix_first_pose=False, debug=False):
+def fgo(init_pos, sat_pos, m_ranges, m_odom, range_sigma, odom_sigmas, gps_rate, fix_first_pose=False, debug=False):
     """Factor graph optimization
 
     Parameters
@@ -272,7 +293,7 @@ def fgo(init_pos, sat_pos, m_ranges, m_odom, range_sigma, odom_sigma, gps_rate, 
 
     # Build values and factors
     values = build_values(init_pos, sat_pos, m_ranges, m_odom, 
-                        range_sigma, odom_sigma)
+                        range_sigma, odom_sigmas)
     factors = build_factors(N_POSES, N_SATS, gps_rate=gps_rate, fix_first_pose=fix_first_pose)
 
     # Select the keys to optimize - the rest will be held constant

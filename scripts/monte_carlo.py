@@ -26,7 +26,7 @@ import symforce.symbolic as sf
 #                    PARAMETERS                     #
 # ================================================= #
 
-kitti_seq = '0027'
+kitti_seq = '0018'
 start_idx = 0
 
 N_SHIFT = 10
@@ -47,6 +47,11 @@ ODOM_T_SIGMA = 0.05  # [m]
 ODOM_SIGMA = np.ones(6)
 ODOM_SIGMA[:3] *= ODOM_R_SIGMA
 ODOM_SIGMA[3:] *= ODOM_T_SIGMA
+
+LIDAR_SIGMA = np.eye(6)
+LIDAR_SIGMA[:3, :3] *= ODOM_R_SIGMA
+LIDAR_SIGMA[3:, 3:] *= ODOM_T_SIGMA
+lidar_sigmas = [sf.Matrix(LIDAR_SIGMA) for i in range(TRAJLEN)]
 
 # ================================================= #
 #                       SETUP                       #
@@ -120,7 +125,7 @@ for i in range(N_RUNS):
         odom = lidar_odom[window]
         ranges = spoofed_ranges[window]
 
-        result = fgo(init_poses, satpos_enu, ranges, odom, PR_SIGMA, ODOM_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
+        result = fgo(init_poses, satpos_enu, ranges, odom, PR_SIGMA, lidar_sigmas, GPS_RATE, fix_first_pose=True, debug=False)
 
         # Extract optimized positions
         window_positions = np.zeros((N_WINDOW, 3))
