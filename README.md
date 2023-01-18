@@ -18,7 +18,7 @@ Active the environment:
     
 Install dependencies:
 
-    pip install numpy scipy jupyter ipykernel ipympl plotly pandas open3d graphslam
+    pip install -r requirements.txt
    
 Install `chimera` locally from directory containing `setup.py`
    
