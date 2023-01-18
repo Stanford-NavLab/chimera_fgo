@@ -6,12 +6,12 @@ import time
 from scipy.stats import chi2
 from tqdm import tqdm
 
-import lgchimera.general as general
-from lgchimera.io import read_lidar_bin, read_gt
-from lgchimera.kitti_util import process_kitti_gt, load_icp_results
-from lgchimera.geom_util import euler_to_R
+import chimera_fgo.general as general
+from chimera_fgo.io import read_lidar_bin, read_gt
+from chimera_fgo.kitti_util import process_kitti_gt, load_icp_results
+from chimera_fgo.geom_util import euler_to_R
 
-from lgchimera.symforce.factor_graph import fgo
+from chimera_fgo.symforce.factor_graph import fgo
 
 import symforce
 try:

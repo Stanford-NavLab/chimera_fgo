@@ -3,9 +3,9 @@ import open3d as o3d
 import os
 from scipy.spatial.transform import Rotation as R
 
-from lgchimera.general import lla_to_ecef, ecef2enu
-from lgchimera.io import read_lidar_bin, read_gt
-from lgchimera.registration import initialize_source_and_target, p2pl_ICP_with_covariance
+from chimera_fgo.general import lla_to_ecef, ecef2enu
+from chimera_fgo.io import read_lidar_bin, read_gt
+from chimera_fgo.registration import initialize_source_and_target, p2pl_ICP_with_covariance
 
 if __name__=='__main__':
     # Load point clouds
