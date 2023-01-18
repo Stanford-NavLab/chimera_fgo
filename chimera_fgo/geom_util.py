@@ -5,7 +5,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from lgchimera.general import normalize
+from chimera_fgo.general import normalize
 
 
 def vector_projection(a, b):

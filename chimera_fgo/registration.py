@@ -9,7 +9,7 @@ import open3d as o3d
 import time
 from numba import njit
 
-from lgchimera.geom_util import se3_expmap, se3_logmap
+from chimera_fgo.geom_util import se3_expmap, se3_logmap
 
 
 def initialize_source_and_target(source_data, target_data):

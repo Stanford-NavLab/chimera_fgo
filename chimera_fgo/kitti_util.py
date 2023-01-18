@@ -6,9 +6,9 @@ import numpy as np
 import pandas as pd
 import os
 
-from lgchimera.io import read_gt
-from lgchimera.geom_util import euler_to_R
-from lgchimera.general import lla_to_ecef, ecef2enu
+from chimera_fgo.io import read_gt
+from chimera_fgo.geom_util import euler_to_R
+from chimera_fgo.general import lla_to_ecef, ecef2enu
 
 
 def process_kitti_gt(path, start_idx=0):

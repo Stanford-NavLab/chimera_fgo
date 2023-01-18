@@ -12,18 +12,18 @@ from graphslam.pose.se3 import PoseSE3
 from graphslam.pose.r3 import PoseR3
 import plotly.graph_objects as go
 
-from lgchimera.geom_util import R_to_quat, quat_to_R
-from lgchimera.general import SuppressPrint
-from lgchimera.edge_position import EdgePosition
-from lgchimera.my_graph import MyGraph
+from chimera_fgo.geom_util import R_to_quat, quat_to_R
+from chimera_fgo.general import SuppressPrint
+from chimera_fgo.edge_position import EdgePosition
+from chimera_fgo.my_graph import MyGraph
 
 
-class PositionGraph:
-    """PositionGraph class.
+class PoseGraph:
+    """PoseGraph class.
 
     This class is a wrapper around the graphslam Graph class. 
 
-    Vertices: nodes (positions) and factors (GPS positions)
+    Vertices: nodes (poses) and factors (GPS positions)
 
     Node indexing starts at 1
     Vertex index for node i is -i
@@ -51,7 +51,7 @@ class PositionGraph:
         # self.graph._vertices = vertices
         
 
-    def add_node(self, id, position):
+    def add_node(self, id, pose):
         """Add node with ID and pose
 
         Parameters
@@ -62,30 +62,28 @@ class PositionGraph:
             Tuple of rotation and translation
         
         """
-        p = PoseR3(position)
+        p = PoseSE3(pose[1], R_to_quat(pose[0]))
         v = Vertex(id, p)
         self.graph._vertices.append(v)
 
     
-    def add_edge(self, ids, translation, information=np.eye(3)):
-        """Add vertex with ID and relative translation
+    def add_edge(self, ids, transformation, information=np.eye(6)):
+        """Add vertex with ID and pose
 
         Parameters
         ----------
         ids : list
             Pair of vertex IDs for this edge
-        translation : np.array (3 x 1)
-            Translation
-        information : np.array (3 x 3)
-            Information matrix
+        transformation : tuple (R,t)
+            Tuple of rotation and translation
         
         """
-        estimate = PoseR3(translation)
+        estimate = PoseSE3(transformation[1], R_to_quat(transformation[0]))
         e = EdgeOdometry(ids, information, estimate)
         self.graph._edges.append(e)
 
 
-    def add_factor(self, id, position, information=np.eye(3)):
+    def add_factor(self, id, pose, information=np.eye(6)):
         """Add factor (vertex with identity edge) 
 
         GPS position factor represented as vertex containing position measurement
@@ -95,21 +93,19 @@ class PositionGraph:
         ----------
         id : int
             Vertex ID
-        position : np.array (3 x 1)
-            GPS position measurement
-        information : np.array (3 x 3)
-            Information matrix
+        pose : tuple (R,t)
+            Tuple of rotation and translation
         
         """
         # "Fake" GPS node with R3 edge
         # Factor vertex
-        p = PoseR3(position)
+        p = PoseSE3(pose[1], R_to_quat(pose[0]))
         v = Vertex(-id, p, fixed=True)
         self.graph._vertices.append(v)
         # Factor edge
-        estimate = PoseR3(np.zeros(3))
-        #e = EdgePosition([-id, id], information, estimate)
-        e = EdgeOdometry([-id, id], information, estimate)
+        estimate = PoseSE3(np.zeros(3), np.array([0,0,0,1]))
+        e = EdgePosition([-id, id], information, estimate)
+        #e = EdgeOdometry([-id, id], information, estimate)
         self.graph._edges.append(e)
 
         # # Dangling factor
@@ -133,6 +129,39 @@ class PositionGraph:
                 positions.append(v.pose.position)
         return np.array(positions)
 
+    
+    def get_rotations(self):
+        """Retrieve rotations from graph vertices
+
+        Returns
+        -------
+        rotations : np.array (3 x 3 x N)
+            Array of rotation matrices
+
+        """
+        rotations = []
+        for v in self.graph._vertices:
+            if v.id >= 0:
+                rotations.append(quat_to_R(v.pose.orientation))
+        return rotations
+
+
+    def get_poses(self):
+        """Return poses (R,t) from graph vertices
+        
+        Returns
+        -------
+        poses : list of tuples (R,t)
+
+        """
+        poses = []
+        for v in self.graph._vertices:
+            if v.id >= 0:
+                R = quat_to_R(v.pose.orientation)
+                t = v.pose.position
+                poses.append((R,t))
+        return poses
+
 
     def trim_window(self, n=1):
         """Maintain fixed window size
@@ -153,7 +182,7 @@ class PositionGraph:
             del self.graph._edges[0]
 
 
-    def optimize(self, max_iter=20, window=None, suppress_output=True):
+    def optimize(self, max_iter=20, window=None, verbose=False):
         """Optimize the pose graph
 
         Parameters
@@ -177,12 +206,7 @@ class PositionGraph:
         #         else:
         #             v.fixed = False
 
-        # Suppress output
-        if suppress_output:
-            with SuppressPrint():
-                self.graph.optimize(max_iter=max_iter)
-        else:
-            self.graph.optimize(max_iter=max_iter)
+        self.graph.optimize(max_iter=max_iter, verbose=verbose)
 
         # Unfix nodes
         # if window is not None:
@@ -210,53 +234,31 @@ class PositionGraph:
         fixed = np.array(fixed)
         free = np.array(free)
 
-        # # Draw fixed vertices as boxes
-        # factors = go.Scatter3d(x=fixed[:,0], y=fixed[:,1], z=fixed[:,2], showlegend=False, 
-        #     mode='markers', marker=dict(size=marker_size, color='orange', symbol='square'))
-
-        # # Non-fixed vertices
-        # nodes = go.Scatter3d(x=free[:,0], y=free[:,1], z=free[:,2], showlegend=False, 
-        #     mode='markers', marker=dict(size=marker_size, color='blue', symbol='circle'))
-
-        factors = go.Scatter(x=fixed[:,0], y=fixed[:,1], showlegend=False, 
+        # Draw fixed vertices as boxes
+        factors = go.Scatter3d(x=fixed[:,0], y=fixed[:,1], z=fixed[:,2], showlegend=False, 
             mode='markers', marker=dict(size=marker_size, color='orange', symbol='square'))
 
         # Non-fixed vertices
-        nodes = go.Scatter(x=free[:,0], y=free[:,1], showlegend=False, 
+        nodes = go.Scatter3d(x=free[:,0], y=free[:,1], z=free[:,2], showlegend=False, 
             mode='markers', marker=dict(size=marker_size, color='blue', symbol='circle'))
 
-
         # Edges
-        # edge_x = []
-        # edge_y = []
-        # edge_z = []
-        # for edge in self.graph._edges:
-        #     x0, y0, z0 = edge.vertices[0].pose[:3]
-        #     x1, y1, z1 = edge.vertices[1].pose[:3]
-        #     edge_x.append(x0)
-        #     edge_x.append(x1)
-        #     edge_x.append(None)
-        #     edge_y.append(y0)
-        #     edge_y.append(y1)
-        #     edge_y.append(None)
-        #     edge_z.append(z0)
-        #     edge_z.append(z1)
-        #     edge_z.append(None)
-        # edges = go.Scatter3d(x=edge_x, y=edge_y, z=edge_z, mode='lines', showlegend=False, 
-        #     line=dict(width=edge_width, color='orange'))
-
         edge_x = []
         edge_y = []
+        edge_z = []
         for edge in self.graph._edges:
-            x0, y0 = edge.vertices[0].pose[:2]
-            x1, y1 = edge.vertices[1].pose[:2]
+            x0, y0, z0 = edge.vertices[0].pose[:3]
+            x1, y1, z1 = edge.vertices[1].pose[:3]
             edge_x.append(x0)
             edge_x.append(x1)
             edge_x.append(None)
             edge_y.append(y0)
             edge_y.append(y1)
             edge_y.append(None)
-        edges = go.Scatter(x=edge_x, y=edge_y, mode='lines', showlegend=False, 
+            edge_z.append(z0)
+            edge_z.append(z1)
+            edge_z.append(None)
+        edges = go.Scatter3d(x=edge_x, y=edge_y, z=edge_z, mode='lines', showlegend=False, 
             line=dict(width=edge_width, color='orange'))
 
         return [factors, nodes, edges]
@@ -278,10 +280,24 @@ class PositionGraph:
 
         # Compute test statistic
         q = 0
+
+        # Debugging: look at translation and rotational components
+        q_tran = 0
+        q_rot = 0
+
         for e in self.graph._edges:
-            if e.vertex_ids[0] < 0:
+            #if e.vertex_ids[0] < 0:   # GPS edges
+            if e.vertex_ids[0] > 0:   # Lidar edges
                 q += e.calc_chi2()
-        return q
+
+                # Debugging
+                err = e.calc_error()
+                q_tran += sum(err[:3]**2)
+                q_rot += sum(err[3:]**2)
+
+        print("q_rot: ", q_rot)
+        print("q_tran: ", q_tran)
+        return q, q_tran, q_rot
         
 
     def detect_loop_closures(self):

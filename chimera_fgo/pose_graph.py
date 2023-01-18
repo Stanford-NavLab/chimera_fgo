@@ -12,10 +12,10 @@ from graphslam.pose.se3 import PoseSE3
 from graphslam.pose.r3 import PoseR3
 import plotly.graph_objects as go
 
-from lgchimera.geom_util import R_to_quat, quat_to_R
-from lgchimera.general import SuppressPrint
-from lgchimera.edge_position import EdgePosition
-from lgchimera.my_graph import MyGraph
+from chimera_fgo.geom_util import R_to_quat, quat_to_R
+from chimera_fgo.general import SuppressPrint
+from chimera_fgo.edge_position import EdgePosition
+from chimera_fgo.my_graph import MyGraph
 
 
 class PoseGraph:
