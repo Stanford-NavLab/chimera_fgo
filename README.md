@@ -6,7 +6,7 @@ LiDAR GPS Factor Graph Optimization (FGO) with Chimera authentication
 
 Clone the GitHub repository:
 
-    git clone https://github.com/adamdai/lidar-gps-chimera.git
+    git clone https://github.com/adamdai/chimera_fgo.git
 
 Create conda environment:
 
