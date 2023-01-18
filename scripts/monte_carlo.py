@@ -26,8 +26,8 @@ import symforce.symbolic as sf
 #                    PARAMETERS                     #
 # ================================================= #
 
-kitti_seq = '0018'
-start_idx = 0
+kitti_seq = '0028'
+start_idx = 1550
 
 N_SHIFT = 10
 N_WINDOW = 100
@@ -124,8 +124,9 @@ for i in range(N_RUNS):
         window = slice(N_SHIFT * k, N_SHIFT * k + N_WINDOW)
         odom = lidar_odom[window]
         ranges = spoofed_ranges[window]
+        #odom_sigmas = lidar_sigmas[window]
 
-        result = fgo(init_poses, satpos_enu, ranges, odom, PR_SIGMA, lidar_sigmas, GPS_RATE, fix_first_pose=True, debug=False)
+        result = fgo(init_poses, satpos_enu, ranges, odom, PR_SIGMA, ODOM_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
 
         # Extract optimized positions
         window_positions = np.zeros((N_WINDOW, 3))

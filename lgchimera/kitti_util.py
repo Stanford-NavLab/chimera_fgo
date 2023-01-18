@@ -3,6 +3,7 @@
 """
 
 import numpy as np
+import pandas as pd
 import os
 
 from lgchimera.io import read_gt
@@ -55,3 +56,31 @@ def load_icp_results(data_path, start_idx=0, ds_rate=10, Q_ini=0.01):
     covs = np.load(os.path.join(data_path, 'covariances_'+run_name+'.npy'))
 
     return Rs, ts, pos, covs
+
+
+def load_sv_positions(gt_path, sv_path, kitti_seq, start_idx=0):
+    """Load satellite positions
+    """
+    # Get reference position
+    gt_data = read_gt(gt_path)
+    gt_data = gt_data[start_idx:]
+    ref_lla = gt_data[0,:3]
+
+    # Get satellite positions
+    svfile = os.path.join(sv_path, f'{kitti_seq}_saved_sats.csv')
+    df = pd.read_csv(svfile)
+    sv_positions = []  # list of satellite position arrays (in ENU) for each timestep
+
+    # Group measurements by epoch
+    df_grouped = df.groupby('times')
+    # Iterate over epochs
+    for i, (_, group) in enumerate(df_grouped):
+        if i >= start_idx:
+            sat_xyz = np.array([group.x, group.y, group.z]).T
+            # Convert to ENU
+            for i, ecef in enumerate(sat_xyz):
+                sat_xyz[i] = ecef2enu(ecef[0], ecef[1], ecef[2], ref_lla[0], ref_lla[1], ref_lla[2])
+            sv_positions.append(sat_xyz[:,[1,0,2]])
+    
+    return sv_positions
+        
