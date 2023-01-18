@@ -1,6 +1,6 @@
-# lidar-gps-chimera
+# chimera_fgo
 
-LiDAR GPS fusion with Chimera authentication
+LiDAR GPS Factor Graph Optimization (FGO) with Chimera authentication
 
 ## Setup
 
