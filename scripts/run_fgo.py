@@ -21,7 +21,7 @@ import symforce.symbolic as sf
 #                 USER PARAMETERS                   #
 # ================================================= #
 
-kitti_seq = '0027'  # ['0018', '0027', '0028', '0034']
+kitti_seq = '0018'  # ['0018', '0027', '0028', '0034']
 MAX_BIAS = -50  # [m]
 
 # ================================================= #
@@ -56,8 +56,8 @@ ODOM_SIGMA[3:] *= ODOM_T_SIGMA
 #                       SETUP                       #
 # ================================================= #
 
-for i in range(100):
-    if i < 50:
+for i in range(20):
+    if i < 10:
         MAX_BIAS = -50
     else:
         MAX_BIAS = 50
@@ -181,6 +181,7 @@ for i in range(100):
     timestr = time.strftime("%Y-%m-%d_%H%M")
 
     if MAX_BIAS == 0:
-        np.savez_compressed(os.path.join(results_path, timestr+'_fgo.npz'), positions=graph_positions_plot, qs=qs_plot)
+        np.savez_compressed(os.path.join(results_path, timestr+'_fgo.npz'), positions=graph_positions_plot, qs=qs_plot, threshold=T)
     else:
-        np.savez_compressed(os.path.join(results_path, timestr+f'_fgo_{MAX_BIAS}m.npz'), positions=graph_positions_plot, spoofed=spoofed_pos_plot, qs=qs_plot)
+        np.savez_compressed(os.path.join(results_path, timestr+f'_fgo_{MAX_BIAS}m.npz'), 
+            positions=graph_positions_plot, spoofed=spoofed_pos_plot, qs=qs_plot, threshold=T)

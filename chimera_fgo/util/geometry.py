@@ -173,6 +173,23 @@ def euler_to_R(euler):
     return R.from_euler('XYZ', [euler[0], euler[1], euler[2]]).as_matrix()
 
 
+def R_to_euler(R_mat):
+    """Convert 3D rotation matrix to euler angles
+    
+    Parameters
+    ----------
+    R : np.array (3 x 3)
+        Rotation matrix
+
+    Returns
+    -------
+    np.array (1 x 3)
+        Euler angles in roll-pitch-yaw (x-y-z) order
+
+    """
+    return R.from_matrix(R_mat).as_euler('XYZ', degrees=False)
+
+
 def skew(v):
     """Convert vector to skew symmetric matrix
     
@@ -295,35 +312,4 @@ def se3_logmap(T):
         V = np.eye(3) + ((1-np.cos(theta))/theta**2) * skew(w) + ((theta-np.sin(theta))/theta**3) * np.linalg.matrix_power(skew(w), 2)
 
     return np.hstack((np.linalg.inv(V)@t, w))
-
-
-def line_plane_intersection(plane, line):
-    """Compute the intersection of an infinite line with infinite plane
-
-    Parameters
-    ----------
-    plane : tuple (n, d)
-        Plane parameterized by normal vector n and distance to origin d
-    line : tuple (x0, v)
-        Line parameterized by point x0 and vector v
-
-    Returns
-    -------
-    None if no intersection (line and plane are parallel)
-        or
-    (intersection_pt, c)
-    
-    """
-    n = plane[0]; d = plane[1]
-    x0 = line[0]; v = line[1]
-
-    n_dot_v = np.dot(n, v)
-
-    if n_dot_v == 0:
-        print("not intersecting")
-        return None
-    else:
-        c = (d - np.dot(n, x0)) / n_dot_v
-        intersection_pt = x0 + c * v
-        return (intersection_pt, c)
 

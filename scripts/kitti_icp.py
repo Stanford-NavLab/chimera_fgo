@@ -2,8 +2,8 @@ import os
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from chimera_fgo.general import lla_to_ecef, ecef2enu
-from chimera_fgo.io import read_lidar_bin, read_gt
+from chimera_fgo.util.general import lla_to_ecef, ecef2enu
+from chimera_fgo.util.io import read_lidar_bin, read_gt
 from chimera_fgo.registration import initialize_source_and_target, p2pl_ICP_with_covariance
 
 # ----------------------- Parameters ----------------------- #

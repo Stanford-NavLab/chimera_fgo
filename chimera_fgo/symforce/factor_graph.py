@@ -10,17 +10,13 @@ try:
 except symforce.AlreadyUsedEpsilon:
     pass 
 
-import numpy as np
-
 import symforce.symbolic as sf
 from symforce.values import Values
 from symforce import typing as T
 from symforce.opt.factor import Factor
 from symforce.opt.optimizer import Optimizer
 
-# -----------------------------------------------------------------------------
-# Residual functions
-# -----------------------------------------------------------------------------
+
 def range_residual(
         pose: sf.Pose3, 
         satellite: sf.V3, 
