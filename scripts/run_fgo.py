@@ -21,8 +21,10 @@ import symforce.symbolic as sf
 #                 USER PARAMETERS                   #
 # ================================================= #
 
-kitti_seq = '0018'  # ['0018', '0027', '0028', '0034']
-MAX_BIAS = -50  # [m]
+kitti_seq = '0034'  # ['0018', '0027', '0028', '0034']
+MAX_BIAS = 0  # [m]  # [0, 20, 50, 100]
+N_RUNS = 100
+MITIGATION = False
 
 # ================================================= #
 #                    PARAMETERS                     #
@@ -56,41 +58,52 @@ ODOM_SIGMA[3:] *= ODOM_T_SIGMA
 #                       SETUP                       #
 # ================================================= #
 
-for i in range(20):
-    if i < 10:
-        MAX_BIAS = -50
-    else:
-        MAX_BIAS = 50
+print("Running FGO on KITTI sequence", kitti_seq, "with max bias of", MAX_BIAS, "meters")
 
-    #print("Running FGO on KITTI sequence", kitti_seq, "with max bias of", MAX_BIAS, "meters")
-    print("Run number", i)
+# Setup results directory
+timestr = time.strftime("%Y-%m-%d-%H%M")
+if MITIGATION:
+    fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_{timestr}'
+else:
+    fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_blind_{timestr}'
+results_path = os.path.join(os.getcwd(), '..', 'results', kitti_seq, fname)
+if not os.path.exists(results_path):
+    os.makedirs(results_path)
 
-    # Load the data
-    print("Loading data...")
-    gtpath = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'oxts', 'data')
-    gt_enu, gt_Rs, gt_attitudes = process_kitti_gt(gtpath, start_idx=start_idx)
+# Load the data
+print("Loading data...")
+gtpath = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'oxts', 'data')
+gt_enu, gt_Rs, gt_attitudes = process_kitti_gt(gtpath, start_idx=start_idx)
 
-    data_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'icp')
-    lidar_Rs, lidar_ts, positions, lidar_covariances = load_icp_results(data_path, start_idx=start_idx)
+data_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'icp')
+lidar_Rs, lidar_ts, positions, lidar_covariances = load_icp_results(data_path, start_idx=start_idx)
 
-    # Load satellite positions
-    sv_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'svs')
-    sv_positions = load_sv_positions(gtpath, sv_path, kitti_seq, start_idx=start_idx)
-    N_SATS = len(sv_positions[0])
+# Load satellite positions
+sv_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'svs')
+sv_positions = load_sv_positions(gtpath, sv_path, kitti_seq, start_idx=start_idx)
+N_SATS = len(sv_positions[0])
 
-    # Compute threshold
-    T = chi2.ppf(1-ALPHA, df=N_SATS*(N_WINDOW/GPS_RATE))
+# Compute threshold
+T = chi2.ppf(1-ALPHA, df=N_SATS*(N_WINDOW/GPS_RATE))
 
-    # Lidar odometry
-    lidar_odom = [None] * TRAJLEN
-    for i in range(TRAJLEN - 1):
-        lidar_odom[i] = (lidar_Rs[i], lidar_ts[i])
+# Lidar odometry
+lidar_odom = [None] * TRAJLEN
+for i in range(TRAJLEN - 1):
+    lidar_odom[i] = (lidar_Rs[i], lidar_ts[i])
+
+# ================================================= #
+#                     RUN FGO                       #
+# ================================================= #
+
+for run_i in range(N_RUNS):
+
+    print("Run number", run_i)
 
     # Spoofed trajectory
     spoofed_pos = gt_enu[:TRAJLEN].copy()
     gps_spoofing_biases = np.zeros(TRAJLEN)  
     gps_spoofing_biases[ATTACK_START:] = np.linspace(0, MAX_BIAS, TRAJLEN-ATTACK_START)  # Ramping attack
-    spoofed_pos[:,0] -= gps_spoofing_biases
+    spoofed_pos[:,0] += gps_spoofing_biases
 
     # Spoofed ranges
     spoofed_ranges = np.zeros((TRAJLEN, N_SATS))
@@ -98,11 +111,6 @@ for i in range(20):
         svs = sv_positions[i]
         for j in range(N_SATS):
             spoofed_ranges[i,j] = np.linalg.norm(spoofed_pos[i] - svs[j]) + np.random.normal(0, PR_SIGMA)
-
-
-    # ================================================= #
-    #                     RUN FGO                       #
-    # ================================================= #
 
     graph_positions = np.zeros((TRAJLEN, 3))
     init_poses = [sf.Pose3.identity()] * N_WINDOW
@@ -154,15 +162,13 @@ for i in range(20):
         qs[k] = q
 
         # Mitigation
-        if authentic:
+        if MITIGATION and authentic:
             if q > T:
                 #print("Attack detected at ", N_SHIFT * k)
                 range_sigma = PR_SPOOFED_SIGMA
                 authentic = False
 
-
     OPT_TRAJLEN = N_SHIFT*(k+1)
-
 
     # ================================================= #
     #                   SAVE RESULTS                    #
@@ -172,16 +178,19 @@ for i in range(20):
     spoofed_pos_plot = spoofed_pos[:OPT_TRAJLEN]
     qs_plot = qs[:OPT_TRAJLEN//N_SHIFT]
 
-    spoofed = 'nominal' if MAX_BIAS == 0 else 'spoofed'
-    results_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'results', spoofed)
+    # spoofed = 'nominal' if MAX_BIAS == 0 else 'spoofed'
+    # results_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'results', spoofed)
 
-    if not os.path.exists(results_path):
-        os.makedirs(results_path)
+    # if not os.path.exists(results_path):
+    #     os.makedirs(results_path)
 
-    timestr = time.strftime("%Y-%m-%d_%H%M")
+    # timestr = time.strftime("%Y-%m-%d_%H%M")
 
-    if MAX_BIAS == 0:
-        np.savez_compressed(os.path.join(results_path, timestr+'_fgo.npz'), positions=graph_positions_plot, qs=qs_plot, threshold=T)
-    else:
-        np.savez_compressed(os.path.join(results_path, timestr+f'_fgo_{MAX_BIAS}m.npz'), 
+    # if MAX_BIAS == 0:
+    #     np.savez_compressed(os.path.join(results_path, f'run_{i}.npz'), positions=graph_positions_plot, qs=qs_plot, threshold=T)
+    # else:
+    #     np.savez_compressed(os.path.join(results_path, f'run_{i}.npz'), 
+    #         positions=graph_positions_plot, spoofed=spoofed_pos_plot, qs=qs_plot, threshold=T)
+
+    np.savez_compressed(os.path.join(results_path, f'run_{run_i}.npz'), 
             positions=graph_positions_plot, spoofed=spoofed_pos_plot, qs=qs_plot, threshold=T)

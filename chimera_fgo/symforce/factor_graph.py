@@ -319,11 +319,8 @@ def build_factors_eph(num_poses, num_satellites, gps_rate=1, fix_first_pose=Fals
                 residual=range_residual,
                 keys=[
                     f"poses[{i}]",
-                    #"poses",
                     f"satellites[{i}][{j}]",
-                    #"satellites",
                     f"ranges[{i}][{j}]",
-                    #"ranges",
                     "range_sigma",
                     "epsilon",
                 ],
@@ -440,7 +437,10 @@ def fgo_eph(init_pos, sat_pos, m_ranges, m_odom, range_sigma, odom_sigma, gps_ra
         # Return problem stats for every iteration
         debug_stats=debug,
         # Customize optimizer behavior
-        params=Optimizer.Params(verbose=debug, initial_lambda=1e4, lambda_down_factor=0.5),
+        params=Optimizer.Params(verbose=debug, 
+            initial_lambda=1e4, 
+            iterations=100,
+            lambda_down_factor=0.5),
     )
 
     # Solve and return the result

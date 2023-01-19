@@ -1,17 +1,11 @@
 import numpy as np
-import struct 
-import os
-import plotly.graph_objects as go
 import time
+import os
 from scipy.stats import chi2
 from tqdm import tqdm
 
-import chimera_fgo.general as general
-from chimera_fgo.io import read_lidar_bin, read_gt
-from chimera_fgo.kitti_util import process_kitti_gt, load_icp_results
-from chimera_fgo.geom_util import euler_to_R
-
-from chimera_fgo.symforce.factor_graph import fgo
+from chimera_fgo.util.kitti import process_kitti_gt, load_icp_results, load_sv_positions
+from chimera_fgo.symforce.factor_graph import fgo_eph
 
 import symforce
 try:
@@ -22,111 +16,121 @@ except symforce.AlreadyUsedEpsilon:
 
 import symforce.symbolic as sf
 
+
+# ================================================= #
+#                 USER PARAMETERS                   #
+# ================================================= #
+
+kitti_seq = '0034'  # ['0018', '0027', '0028', '0034']
+MAX_BIAS = -100  # [m]  # [0, 20, 50, 100]
+N_RUNS = 100
+MITIGATION = False
+
 # ================================================= #
 #                    PARAMETERS                     #
 # ================================================= #
 
-kitti_seq = '0028'
-start_idx = 1550
+if kitti_seq == '0028':
+    start_idx = 1550
+else:
+    start_idx = 0
 
 N_SHIFT = 10
 N_WINDOW = 100
 GPS_RATE = 10
 
-TRAJLEN = 2000   # 4544
+TRAJLEN = 2000   
 
-MAX_BIAS = 50  # [m]
 ATTACK_START = TRAJLEN // 2
+ALPHA = 0.001  # False alarm (FA) rate
 
-ATTITUDE = False
+PR_SIGMA = 6.0  # [m]
+PR_SPOOFED_SIGMA = 1e5  # [m]
 
 # Lidar odometry covariance
-ODOM_R_SIGMA = 0.01  # 
+ODOM_R_SIGMA = 0.01  # so(3) tangent space units
 ODOM_T_SIGMA = 0.05  # [m]
-#ODOM_SIGMA = np.array([0.05, 0.05, 0.05, 0.2, 0.2, 0.2])
 ODOM_SIGMA = np.ones(6)
 ODOM_SIGMA[:3] *= ODOM_R_SIGMA
 ODOM_SIGMA[3:] *= ODOM_T_SIGMA
 
-LIDAR_SIGMA = np.eye(6)
-LIDAR_SIGMA[:3, :3] *= ODOM_R_SIGMA
-LIDAR_SIGMA[3:, 3:] *= ODOM_T_SIGMA
-lidar_sigmas = [sf.Matrix(LIDAR_SIGMA) for i in range(TRAJLEN)]
-
 # ================================================= #
 #                       SETUP                       #
 # ================================================= #
+
+print("Running FGO on KITTI sequence", kitti_seq, "with max bias of", MAX_BIAS, "meters")
+
+# Setup results directory
+timestr = time.strftime("%Y-%m-%d-%H%M")
+if MITIGATION:
+    fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_{timestr}'
+else:
+    fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_blind_{timestr}'
+results_path = os.path.join(os.getcwd(), '..', 'results', kitti_seq, fname)
+if not os.path.exists(results_path):
+    os.makedirs(results_path)
 
 # Load the data
 print("Loading data...")
 gtpath = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'oxts', 'data')
 gt_enu, gt_Rs, gt_attitudes = process_kitti_gt(gtpath, start_idx=start_idx)
 
-data_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'results', 'p2pl_icp')
+data_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'icp')
 lidar_Rs, lidar_ts, positions, lidar_covariances = load_icp_results(data_path, start_idx=start_idx)
 
-# Satellite positions
-# Uniformly arranged in a circle of radius R at constant altitude
-R = 1e4
-SAT_ALT = 1e4
-N_SATS = 10
-satpos_enu = np.zeros((N_SATS, 3))
-satpos_enu[:,0] = np.cos(np.linspace(0, 2*np.pi, N_SATS, endpoint=False)) * R
-satpos_enu[:,1] = np.sin(np.linspace(0, 2*np.pi, N_SATS, endpoint=False)) * R
-satpos_enu[:,2] = SAT_ALT
+# Load satellite positions
+sv_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'svs')
+sv_positions = load_sv_positions(gtpath, sv_path, kitti_seq, start_idx=start_idx)
+N_SATS = len(sv_positions[0])
 
 # Compute threshold
-alpha = 0.001  # False alarm (FA) rate
-T = chi2.ppf(1-alpha, df=N_SATS*(N_WINDOW/GPS_RATE))
+T = chi2.ppf(1-ALPHA, df=N_SATS*(N_WINDOW/GPS_RATE))
 
 # Lidar odometry
 lidar_odom = [None] * TRAJLEN
 for i in range(TRAJLEN - 1):
     lidar_odom[i] = (lidar_Rs[i], lidar_ts[i])
 
-# Spoofed trajectory
-spoofed_pos = gt_enu[:TRAJLEN].copy()
-
-gps_spoofing_biases = np.zeros(TRAJLEN)  
-gps_spoofing_biases[ATTACK_START:] = np.linspace(0, MAX_BIAS, TRAJLEN-ATTACK_START)  # Ramping attack
-
-spoofed_pos[:,0] += gps_spoofing_biases
-
-# Spoofed ranges
-PR_SIGMA = 6
-spoofed_ranges = np.zeros((TRAJLEN, N_SATS))
-for i in range(TRAJLEN):
-    for j in range(N_SATS):
-        spoofed_ranges[i,j] = np.linalg.norm(spoofed_pos[i] - satpos_enu[j]) + np.random.normal(0, PR_SIGMA)
-
-N_RUNS = 100
-
 # ================================================= #
 #                     RUN FGO                       #
 # ================================================= #
 
-for i in range(N_RUNS):
-    print("Run", i)
-    # Regenerate ranges
+for run_i in range(N_RUNS):
+
+    print("Run number", run_i)
+
+    # Spoofed trajectory
+    spoofed_pos = gt_enu[:TRAJLEN].copy()
+    gps_spoofing_biases = np.zeros(TRAJLEN)  
+    gps_spoofing_biases[ATTACK_START:] = np.linspace(0, MAX_BIAS, TRAJLEN-ATTACK_START)  # Ramping attack
+    spoofed_pos[:,0] += gps_spoofing_biases
+
+    # Spoofed ranges
     spoofed_ranges = np.zeros((TRAJLEN, N_SATS))
     for i in range(TRAJLEN):
+        svs = sv_positions[i]
         for j in range(N_SATS):
-            spoofed_ranges[i,j] = np.linalg.norm(spoofed_pos[i] - satpos_enu[j]) + np.random.normal(0, PR_SIGMA)
+            spoofed_ranges[i,j] = np.linalg.norm(spoofed_pos[i] - svs[j]) + np.random.normal(0, PR_SIGMA)
 
     graph_positions = np.zeros((TRAJLEN, 3))
     init_poses = [sf.Pose3.identity()] * N_WINDOW
-    init_poses[0] = sf.Pose3(sf.Rot3.from_rotation_matrix(gt_Rs[0]), sf.V3(gt_enu[0]))
+    init_poses[0] = sf.Pose3(sf.Rot3.from_rotation_matrix(gt_Rs[0]), sf.V3(gt_enu[0] + np.random.normal(0, 1.0, 3)))
     e_ranges = np.zeros((N_WINDOW//GPS_RATE, N_SATS))
     qs = np.zeros(TRAJLEN//GPS_RATE)
 
-    for k in tqdm(range((TRAJLEN - N_WINDOW) // N_SHIFT)):
-        #print(N_SHIFT * k, '/', TRAJLEN)
+    range_sigma = PR_SIGMA
+    authentic = True
+
+    for k in (pbar := tqdm(range((TRAJLEN - N_WINDOW) // N_SHIFT))):
+
         window = slice(N_SHIFT * k, N_SHIFT * k + N_WINDOW)
         odom = lidar_odom[window]
         ranges = spoofed_ranges[window]
-        #odom_sigmas = lidar_sigmas[window]
 
-        result = fgo(init_poses, satpos_enu, ranges, odom, PR_SIGMA, ODOM_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
+        satpos_enu = np.array(sv_positions[window])
+        satpos = [[sf.V3(satpos_enu[i][j]) for j in range(N_SATS)] for i in range(N_WINDOW)]
+
+        result = fgo_eph(init_poses, satpos, ranges, odom, range_sigma, ODOM_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
 
         # Extract optimized positions
         window_positions = np.zeros((N_WINDOW, 3))
@@ -150,39 +154,43 @@ for i in range(N_RUNS):
 
         # Compute test statistic
         for i in range(N_WINDOW//GPS_RATE):
+            svs = sv_positions[N_SHIFT * k + i * GPS_RATE]
             for j in range(N_SATS):
-                e_ranges[i,j] = np.linalg.norm(window_positions[::GPS_RATE][i] - satpos_enu[j])
-        q = np.sum((ranges[::GPS_RATE] - e_ranges)**2) / PR_SIGMA**2
-        #print("q = ", q)
+                e_ranges[i,j] = np.linalg.norm(window_positions[::GPS_RATE][i] - svs[j])
+        q = np.sum((ranges[::GPS_RATE] - e_ranges)**2) / range_sigma**2
+        pbar.set_description(f"q = {q:.2f}")
         qs[k] = q
+
+        # Mitigation
+        if MITIGATION and authentic:
+            if q > T:
+                #print("Attack detected at ", N_SHIFT * k)
+                range_sigma = PR_SPOOFED_SIGMA
+                authentic = False
 
     OPT_TRAJLEN = N_SHIFT*(k+1)
 
-    graph_positions = graph_positions[:OPT_TRAJLEN]
-    gt_enu = gt_enu[:OPT_TRAJLEN]
-    qs = qs[:OPT_TRAJLEN]
+    # ================================================= #
+    #                   SAVE RESULTS                    #
+    # ================================================= #
 
-    # Compute statistics
-    # RMSE error
-    rmse_xyz = np.sqrt(np.mean((graph_positions - gt_enu)**2, axis=0))
-    print("RMSE (xyz): ", rmse_xyz)
-    print("RMSE (overall): ", rmse_xyz.mean())
+    graph_positions_plot = graph_positions[:OPT_TRAJLEN]
+    spoofed_pos_plot = spoofed_pos[:OPT_TRAJLEN]
+    qs_plot = qs[:OPT_TRAJLEN//N_SHIFT]
 
-    # Detection / time to detection
-    print('Max test statistic: ', qs.max())
-    attack_detected = np.any(qs > T)
-    if attack_detected:
-        t_detected = np.argmax(qs > T) * N_SHIFT
-        print("Attack detected at t = ", t_detected)
+    # spoofed = 'nominal' if MAX_BIAS == 0 else 'spoofed'
+    # results_path = os.path.join(os.getcwd(), '..', 'data', 'kitti', kitti_seq, 'results', spoofed)
 
-    # Max errors
-    max_xyz = np.max(np.abs(graph_positions - gt_enu), axis=0)
-    print("Max error (xyz): ", max_xyz)
+    # if not os.path.exists(results_path):
+    #     os.makedirs(results_path)
 
-    # Mean errors
+    # timestr = time.strftime("%Y-%m-%d_%H%M")
 
+    # if MAX_BIAS == 0:
+    #     np.savez_compressed(os.path.join(results_path, f'run_{i}.npz'), positions=graph_positions_plot, qs=qs_plot, threshold=T)
+    # else:
+    #     np.savez_compressed(os.path.join(results_path, f'run_{i}.npz'), 
+    #         positions=graph_positions_plot, spoofed=spoofed_pos_plot, qs=qs_plot, threshold=T)
 
-    # Plots
-    # Trajectory
-    
-    # 
+    np.savez_compressed(os.path.join(results_path, f'run_{run_i}.npz'), 
+            positions=graph_positions_plot, spoofed=spoofed_pos_plot, qs=qs_plot, threshold=T)

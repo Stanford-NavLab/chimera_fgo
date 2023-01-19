@@ -11,6 +11,7 @@ except symforce.AlreadyUsedEpsilon:
     pass 
 
 import symforce.symbolic as sf
+from symforce import typing as T
 
 
 def range_residual(
