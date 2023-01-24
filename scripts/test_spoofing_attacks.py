@@ -23,8 +23,8 @@ import symforce.symbolic as sf
 
 # kitti_seq = '0034'  # ['0018', '0027', '0028', '0034']
 # MAX_BIAS = 0  # [m]  # [0, 20, 50, 100]
-N_RUNS = 1
-MITIGATION = False
+N_RUNS = 20
+MITIGATION = True
 
 # ================================================= #
 #                    PARAMETERS                     #
@@ -53,8 +53,8 @@ ODOM_SIGMA[3:] *= ODOM_T_SIGMA
 #                       SETUP                       #
 # ================================================= #
 
-for kitti_seq in ['0018', '0027', '0028', '0034']:
-    for MAX_BIAS in [200]:
+for kitti_seq in ['0027']:
+    for MAX_BIAS in [-200]:
         for MITIGATION in [True, False]:
 
             if kitti_seq == '0028':
@@ -67,7 +67,7 @@ for kitti_seq in ['0018', '0027', '0028', '0034']:
             # Setup results directory
             timestr = time.strftime("%Y-%m-%d-%H%M")
             if MITIGATION:
-                fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_{timestr}'
+                fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_{N_WINDOW}w_{timestr}'
             else:
                 fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_blind_{timestr}'
             results_path = os.path.join(os.getcwd(), '..', 'results', kitti_seq, fname)
@@ -125,8 +125,11 @@ for kitti_seq in ['0018', '0027', '0028', '0034']:
                 range_sigma = PR_SIGMA
                 authentic = True
 
+                iter_times = []
+
                 for k in (pbar := tqdm(range((TRAJLEN - N_WINDOW) // N_SHIFT))):
 
+                    start_time = time.time()
                     window = slice(N_SHIFT * k, N_SHIFT * k + N_WINDOW)
                     odom = lidar_odom[window]
                     ranges = spoofed_ranges[window]
@@ -171,8 +174,10 @@ for kitti_seq in ['0018', '0027', '0028', '0034']:
                             #print("Attack detected at ", N_SHIFT * k)
                             range_sigma = PR_SPOOFED_SIGMA
                             authentic = False
+                    iter_times.append(time.time() - start_time) 
 
                 OPT_TRAJLEN = N_SHIFT*(k+1)
+                avg_iter_time = np.mean(iter_times)
 
                 # ================================================= #
                 #                   SAVE RESULTS                    #
@@ -182,5 +187,8 @@ for kitti_seq in ['0018', '0027', '0028', '0034']:
                 spoofed_pos_plot = spoofed_pos[:OPT_TRAJLEN]
                 qs_plot = qs[:OPT_TRAJLEN//N_SHIFT]
 
+                position_errors = graph_positions_plot - gt_enu[:OPT_TRAJLEN]
+
                 np.savez_compressed(os.path.join(results_path, f'run_{run_i}.npz'), 
-                        positions=graph_positions_plot, spoofed=spoofed_pos_plot, qs=qs_plot, threshold=T)
+                        positions=graph_positions_plot, position_errors=position_errors, 
+                        spoofed=spoofed_pos_plot, qs=qs_plot, threshold=T, avg_iter_time=avg_iter_time)

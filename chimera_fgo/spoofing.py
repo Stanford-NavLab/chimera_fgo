@@ -35,7 +35,7 @@ def global_ramp(nominal, max_bias, axis=0, start=None):
     if start is None:
         start = traj_len // 2
     gps_spoofing_biases[start:] = np.linspace(0, max_bias, traj_len - start)  
-    spoofed_pos[:,0] += gps_spoofing_biases
+    spoofed_pos[:,axis] += gps_spoofing_biases
 
     return spoofed_pos
 

@@ -21,9 +21,9 @@ import symforce.symbolic as sf
 #                 USER PARAMETERS                   #
 # ================================================= #
 
-kitti_seq = '0034'  # ['0018', '0027', '0028', '0034']
-MAX_BIAS = -100  # [m]  # [0, 20, 50, 100]
-N_RUNS = 100
+kitti_seq = '0027'  # ['0018', '0027', '0028', '0034']
+MAX_BIAS = -200  # [m]  # [0, 20, 50, 100]
+N_RUNS = 20
 MITIGATION = False
 
 # ================================================= #
@@ -192,5 +192,7 @@ for run_i in range(N_RUNS):
     #     np.savez_compressed(os.path.join(results_path, f'run_{i}.npz'), 
     #         positions=graph_positions_plot, spoofed=spoofed_pos_plot, qs=qs_plot, threshold=T)
 
+    position_errors = graph_positions_plot - gt_enu[:OPT_TRAJLEN]
+
     np.savez_compressed(os.path.join(results_path, f'run_{run_i}.npz'), 
-            positions=graph_positions_plot, spoofed=spoofed_pos_plot, qs=qs_plot, threshold=T)
+            positions=graph_positions_plot, position_errors=position_errors, spoofed=spoofed_pos_plot, qs=qs_plot, threshold=T)
