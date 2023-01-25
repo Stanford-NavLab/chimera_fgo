@@ -44,7 +44,7 @@ def range_residual(
         Residual
 
     """
-    return sf.V1((pose.t - satellite).norm(epsilon=epsilon) - range) / sigma
+    return sf.V1((pose.t - satellite).norm(epsilon=epsilon) - range) / sigma**2
 
 
 def position_residual(
