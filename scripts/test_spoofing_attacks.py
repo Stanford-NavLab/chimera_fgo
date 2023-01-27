@@ -5,7 +5,10 @@ from scipy.stats import chi2
 from tqdm import tqdm
 
 from chimera_fgo.util.kitti import process_kitti_gt, load_icp_results, load_sv_positions
+from chimera_fgo.util.geometry import so3_expmap
 from chimera_fgo.symforce.factor_graph import fgo_eph
+from chimera_fgo.symforce.att_fgo import att_fgo
+from chimera_fgo.symforce.fgo_lidar_att_only import fgo_lidar_att_only
 
 import symforce
 try:
@@ -49,13 +52,18 @@ ODOM_SIGMA = np.ones(6)
 ODOM_SIGMA[:3] *= ODOM_R_SIGMA
 ODOM_SIGMA[3:] *= ODOM_T_SIGMA
 
+# Attitude measurement standard deviations
+ATT_SIGMA_SCALE = 0.2
+ATT_SIGMA = ATT_SIGMA_SCALE * sf.V3.ones(3,1)  # so(3) tangent space units (~= rad for small values)
+
 # ================================================= #
 #                       SETUP                       #
 # ================================================= #
 
-for kitti_seq in ['0027']:
-    for MAX_BIAS in [-200]:
-        for MITIGATION in [True, False]:
+for kitti_seq in ['0018', '0027', '0028', '0034']:
+    for MAX_BIAS in [0, 20, 50, 100]:
+        #for ATT_SIGMA_SCALE in [0.05, 0.1, 0.15, 0.2, 0.25]:
+        for WINDOW_SIZE in [100]:
 
             if kitti_seq == '0028':
                 start_idx = 1550
@@ -67,7 +75,7 @@ for kitti_seq in ['0027']:
             # Setup results directory
             timestr = time.strftime("%Y-%m-%d-%H%M")
             if MITIGATION:
-                fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_{N_WINDOW}w_{timestr}'
+                fname = f'att_fgo_{MAX_BIAS}m_{N_RUNS}runs_{timestr}'
             else:
                 fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_blind_{timestr}'
             results_path = os.path.join(os.getcwd(), '..', 'results', kitti_seq, fname)
@@ -94,6 +102,12 @@ for kitti_seq in ['0027']:
             lidar_odom = [None] * TRAJLEN
             for i in range(TRAJLEN - 1):
                 lidar_odom[i] = (lidar_Rs[i], lidar_ts[i])
+
+            # Noisy attitudes
+            m_rotations = [None] * TRAJLEN
+            for i in range(TRAJLEN):
+                noise = np.random.normal(0, ATT_SIGMA, size=3)
+                m_rotations[i] = so3_expmap(noise) @ gt_Rs[i] 
 
             # ================================================= #
             #                     RUN FGO                       #
@@ -133,11 +147,13 @@ for kitti_seq in ['0027']:
                     window = slice(N_SHIFT * k, N_SHIFT * k + N_WINDOW)
                     odom = lidar_odom[window]
                     ranges = spoofed_ranges[window]
+                    attitudes = m_rotations[window]
 
                     satpos_enu = np.array(sv_positions[window])
                     satpos = [[sf.V3(satpos_enu[i][j]) for j in range(N_SATS)] for i in range(N_WINDOW)]
 
-                    result = fgo_eph(init_poses, satpos, ranges, odom, range_sigma, ODOM_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
+                    #result = fgo_eph(init_poses, satpos, ranges, odom, range_sigma, ODOM_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
+                    result = fgo_lidar_att_only(init_poses, odom, attitudes, ODOM_SIGMA, ATT_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
 
                     # Extract optimized positions
                     window_positions = np.zeros((N_WINDOW, 3))
@@ -159,22 +175,22 @@ for kitti_seq in ['0027']:
                         n_pose = lidar_T * n_pose
                         init_poses[-N_SHIFT+i] = n_pose
 
-                    # Compute test statistic
-                    for i in range(N_WINDOW//GPS_RATE):
-                        svs = sv_positions[N_SHIFT * k + i * GPS_RATE]
-                        for j in range(N_SATS):
-                            e_ranges[i,j] = np.linalg.norm(window_positions[::GPS_RATE][i] - svs[j])
-                    q = np.sum((ranges[::GPS_RATE] - e_ranges)**2) / PR_SIGMA**2
-                    pbar.set_description(f"q = {q:.2f}")
-                    qs[k] = q
+                    # # Compute test statistic
+                    # for i in range(N_WINDOW//GPS_RATE):
+                    #     svs = sv_positions[N_SHIFT * k + i * GPS_RATE]
+                    #     for j in range(N_SATS):
+                    #         e_ranges[i,j] = np.linalg.norm(window_positions[::GPS_RATE][i] - svs[j])
+                    # q = np.sum((ranges[::GPS_RATE] - e_ranges)**2) / PR_SIGMA**2
+                    # pbar.set_description(f"q = {q:.2f}")
+                    # qs[k] = q
 
-                    # Mitigation
-                    if MITIGATION and authentic:
-                        if q > T:
-                            #print("Attack detected at ", N_SHIFT * k)
-                            range_sigma = PR_SPOOFED_SIGMA
-                            authentic = False
-                    iter_times.append(time.time() - start_time) 
+                    # # Mitigation
+                    # if MITIGATION and authentic:
+                    #     if q > T:
+                    #         #print("Attack detected at ", N_SHIFT * k)
+                    #         range_sigma = PR_SPOOFED_SIGMA
+                    #         authentic = False
+                    # iter_times.append(time.time() - start_time) 
 
                 OPT_TRAJLEN = N_SHIFT*(k+1)
                 avg_iter_time = np.mean(iter_times)

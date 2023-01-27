@@ -41,7 +41,7 @@ def range_residual(
         Residual
 
     """
-    return sf.V1((pose.t - satellite).norm(epsilon=epsilon) - range) / sigma**2
+    return sf.V1((pose.t - satellite).norm(epsilon=epsilon) - range) / sigma
 
 
 def position_residual(
@@ -57,12 +57,12 @@ def position_residual(
     m_pos : sf.V3
         Position measurement
     sigma : sf.V3
-        Diagonal covariance of measurements
+        Diagonal measurement standard deviation
     
     Returns
     -------
     sf.V3
-        Residual
+        ResidualS
 
     """
     return sf.M.diag(sigma.to_flat_list()).inv() * sf.V3(pose.t - m_pos)
@@ -73,16 +73,16 @@ def orientation_residual(
         m_ori: sf.Rot3, 
         sigma: sf.V3, 
         epsilon: sf.Scalar) -> sf.V3:
-    """Position measurement residual
+    """Orientation measurement residual
 
     Parameters
     ----------
     pose : sf.Pose3
         Robot pose
-    m_pos : sf.V3
-        Position measurement
+    m_ori : sf.Rot3
+        Measured orientation as a rotation matrix
     sigma : sf.V3
-        Diagonal covariance of measurements
+        Diagonal measurement standard deviation
     
     Returns
     -------

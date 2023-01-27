@@ -80,6 +80,13 @@ def p2pl_ICP_with_covariance(source, target, threshold, trans_init, sigma=0.02, 
     
     Parameters
     ----------
+
+    Returns
+    -------
+    reg_p2pl : RegistrationResult
+        Registration result from Open3D
+    Q_sensor : np.array (6 x 6)
+        Sensor uncertainty covariance (first 3 rotation, last 3 translation)
     
     """
     # ICP
