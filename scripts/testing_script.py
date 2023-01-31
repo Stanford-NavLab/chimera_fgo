@@ -23,9 +23,10 @@ from chimera_fgo.chimera_fgo import chimera_fgo
 # kitti_seq = '0034'  # ['0018', '0027', '0028', '0034']
 # MAX_BIAS = 0  # [m]  # [0, 20, 50, 100]
 params = {}
-N_RUNS = 5
+N_RUNS = 15
 params['MITIGATION'] = True
 params['ATTITUDE'] = False
+params['DEBUG'] = False
 
 # ================================================= #
 #                    PARAMETERS                     #
@@ -43,7 +44,7 @@ params['ALPHA'] = 0.001  # False alarm (FA) rate
 params['PR_SIGMA'] = 6.0  # [m]
 
 # Lidar odometry covariance
-ODOM_R_SIGMA = 0.01  # so(3) tangent space units
+ODOM_R_SIGMA = 0.01  # so(3) tangent space units (~= rad for small values)
 ODOM_T_SIGMA = 0.05  # [m]
 ODOM_SIGMA = np.ones(6)
 ODOM_SIGMA[:3] *= ODOM_R_SIGMA
@@ -57,31 +58,41 @@ params['ATT_SIGMA'] = ATT_SIGMA
 
 MAX_BIAS = 100
 N_WINDOW = 100
+MITIGATION = False
+ATTACK_START = 800
 
 # ================================================= #
 #                       SETUP                       #
 # ================================================= #
 
-for kitti_seq in ['0034']:
-    for MAX_BIAS in [50]:
+# Start memory tracking
+if params['DEBUG']: tracemalloc.start()
+
+for kitti_seq in ['0018', '0027', '0028', '0034']:
+    for MAX_BIAS in [200]:
         #for ATT_SIGMA_SCALE in [0.05, 0.1, 0.15, 0.2, 0.25]:
-        #for N_WINDOW in [400, 500]:
-        for MITIGATION in [True]:
+        for N_WINDOW in [100]:
+        #for MITIGATION in [True]:
 
             params['kitti_seq'] = kitti_seq
             params['MAX_BIAS'] = MAX_BIAS
             params['N_WINDOW'] = N_WINDOW
             params['MITIGATION'] = MITIGATION
+            params['ATTACK_START'] = ATTACK_START
 
             print(f"Running {kitti_seq} with {MAX_BIAS}m bias: \
-                  \n    mitigation={params['MITIGATION']}, attitude={params['ATTITUDE']}, N_WINDOW={N_WINDOW}")
+                  \n    mitigation = {params['MITIGATION']}, \
+                  \n    attitude = {params['ATTITUDE']}, \
+                  \n    window size = {params['N_WINDOW']}, \
+                  \n    attack start = {params['ATTACK_START']}, \
+                  \n    runs = {N_RUNS}")
 
             datestr = time.strftime("%Y-%m-%d")
             date_path = os.path.join(os.getcwd(), '..', 'results', kitti_seq, datestr)
             if not os.path.exists(date_path):
                 os.makedirs(date_path)
 
-            fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_{N_WINDOW}w'
+            fname = f'fgo_{MAX_BIAS}m_{ATTACK_START}start_{N_RUNS}runs_{N_WINDOW}w'
             if not params['MITIGATION']: fname += '_blind' 
             if params['ATTITUDE']: fname = 'att_' + fname
 
@@ -89,21 +100,31 @@ for kitti_seq in ['0034']:
             if not os.path.exists(results_path):
                 os.makedirs(results_path)
             else:
-                # Run with same name already exists
-                # TODO: handle this better
-                pass
+                # Run with same name already exists, so add a number to the end
+                i = 1
+                while os.path.exists(results_path + f'_{i}'):
+                    i += 1
+                results_path += f'_{i}'
+                os.makedirs(results_path)
 
             for run_i in range(N_RUNS):
 
                 print("  Run number", run_i)
-                tracemalloc.start()
                 output = chimera_fgo(params)
-                current, peak = tracemalloc.get_traced_memory()
-                # print memory usage
-                print(f"  Current memory usage is {current / 10**6:.2f} MB; Peak was {peak / 10**6:.2f} MB")
+
+                if params['DEBUG']: 
+                    current, peak = tracemalloc.get_traced_memory()
+                    print(f"  Current memory usage is {current / 10**6:.2f} MB; Peak was {peak / 10**6:.2f} MB")
             
                 # Save the output to file
                 np.savez_compressed(os.path.join(results_path, f'run_{run_i}.npz'), **output, **params)
 
                 # Clear the memory
+                del output
                 gc.collect()
+
+            # Track memory
+            # tracemalloc.start()
+            # current, peak = tracemalloc.get_traced_memory()
+            # print(f"  Current memory usage is {current / 10**6:.2f} MB; Peak was {peak / 10**6:.2f} MB")
+            # tracemalloc.stop()

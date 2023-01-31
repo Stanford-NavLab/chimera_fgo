@@ -21,6 +21,7 @@ import symforce.symbolic as sf
 
 from chimera_fgo.util.kitti import process_kitti_gt, load_icp_results, load_sv_positions
 from chimera_fgo.util.geometry import so3_expmap
+from chimera_fgo.odometry import odometry
 from chimera_fgo.symforce.tc_fgo import tc_fgo
 from chimera_fgo.symforce.att_fgo import att_fgo
 from chimera_fgo.symforce.fgo_lidar_only import fgo_lidar_only
@@ -58,6 +59,8 @@ def chimera_fgo(params):
     # Attitude measurement standard deviations
     ATT_SIGMA = params['ATT_SIGMA']
 
+    DEBUG = params['DEBUG']
+
     # ================================================= #
     #                     SETUP                         #
     # ================================================= #
@@ -80,8 +83,8 @@ def chimera_fgo(params):
     T = chi2.ppf(1-ALPHA, df=N_SATS*(N_WINDOW/GPS_RATE))
 
     # Lidar odometry
-    lidar_odom = [None] * (TRAJLEN -1)
-    for i in range(TRAJLEN - 1):
+    lidar_odom = [None] * TRAJLEN
+    for i in range(TRAJLEN):
         lidar_odom[i] = (lidar_Rs[i], lidar_ts[i])
 
     # Spoofed trajectory
@@ -122,31 +125,26 @@ def chimera_fgo(params):
     iter_times = []
     k_max = (TRAJLEN - N_WINDOW) // N_SHIFT + 1
 
-    for k in (pbar := tqdm(range(k_max + 1))):
+    # Start memory tracing
+    if params['DEBUG'] and not tracemalloc.is_tracing(): tracemalloc.start()
+
+    for k in (pbar := tqdm(range(k_max))):
 
         start_time = time.time()
-        tracemalloc.start()
-
-        # For handling re-processing
-        if not authentic: k = k - 1
-        if k == k_max: break
 
         # Slice of current window
         window = slice(N_SHIFT * k, N_SHIFT * k + N_WINDOW)
         odom = lidar_odom[window][:-1]
 
         # Optimize
-        if authentic:
-            ranges = spoofed_ranges[window]
-            satpos_enu = np.array(sv_positions[window])
-            satpos = [[sf.V3(satpos_enu[i][j]) for j in range(N_SATS)] for i in range(N_WINDOW)]
-            if ATTITUDE:
-                attitudes = m_rotations[window]
-                result = att_fgo(init_poses, satpos, ranges, odom, attitudes, PR_SIGMA, ODOM_SIGMA, ATT_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
-            else:
-                result = tc_fgo(init_poses, satpos, ranges, odom, PR_SIGMA, ODOM_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
+        ranges = spoofed_ranges[window]
+        satpos_enu = np.array(sv_positions[window])
+        satpos = [[sf.V3(satpos_enu[i][j]) for j in range(N_SATS)] for i in range(N_WINDOW)]
+        if ATTITUDE:
+            attitudes = m_rotations[window]
+            result = att_fgo(init_poses, satpos, ranges, odom, attitudes, PR_SIGMA, ODOM_SIGMA, ATT_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
         else:
-            result = fgo_lidar_only(init_poses, odom, ODOM_SIGMA, fix_first_pose=True, debug=False)
+            result = tc_fgo(init_poses, satpos, ranges, odom, PR_SIGMA, ODOM_SIGMA, GPS_RATE, fix_first_pose=True, debug=False)
 
         # Extract optimized positions and orientations
         window_positions = np.zeros((N_WINDOW, 3))
@@ -166,12 +164,16 @@ def chimera_fgo(params):
         qs[k] = q
 
         # Check spoofing
-        if MITIGATION and authentic:
-            if q > T:
-                print("Attack detected at ", N_SHIFT * k)
-                authentic = False
-                # Skip saving this window - reprocess it next iteration
-                continue    
+        if MITIGATION and q > T:
+            print("Attack detected at ", N_SHIFT * k)
+            authentic = False
+
+            # Process the remainder of the trajectory with odometry only
+            init_pose = (init_poses[0].R.to_rotation_matrix(), init_poses[0].t.flatten())
+            odom = lidar_odom[N_SHIFT * k:-1]
+            positions, rotations = odometry(init_pose, odom)
+            graph_positions[N_SHIFT * k:] = positions
+            break  
 
         # Save trajectory
         graph_positions[N_SHIFT*k:N_SHIFT*(k+1)] = window_positions[:N_SHIFT]
@@ -188,20 +190,27 @@ def chimera_fgo(params):
             n_pose = n_pose * lidar_T
             init_poses[-N_SHIFT+i] = n_pose
         
-        if authentic:
-            iter_times.append(time.time() - start_time) 
+        iter_times.append(time.time() - start_time) 
         
         # Clean up memory
+        del result
+        del odom
+        del ranges
+        del satpos
+        if k != k_max - 1:
+            del window_positions
+            del window_attitudes
         gc.collect()
 
-        # Print memory usage
-        current, peak = tracemalloc.get_traced_memory()
-        print(f"        Current memory usage is {current / 10**6:.2f} MB; Peak was {peak / 10**6:.2f} MB")
+        if params['DEBUG']:
+            # Print memory usage
+            current, peak = tracemalloc.get_traced_memory()
+            print(f"        Current memory usage is {current / 10**6:.2f} MB; Peak was {peak / 10**6:.2f} MB")
 
-    # Save remaining poses in current window
-    cutoff = N_SHIFT*k if authentic else N_SHIFT*(k+1)
-    graph_positions[cutoff:] = window_positions[N_SHIFT:]
-    graph_attitudes[cutoff:] = window_attitudes[N_SHIFT:]
+    if authentic:
+        # Save remaining poses in current window
+        graph_positions[N_SHIFT*(k+1):] = window_positions[N_SHIFT:]
+        graph_attitudes[N_SHIFT*(k+1):] = window_attitudes[N_SHIFT:]
 
     avg_iter_time = np.mean(iter_times)
     graph_attitudes = graph_attitudes[:,[2,1,0]]
@@ -217,7 +226,7 @@ def chimera_fgo(params):
     output['gt_positions'] = gt_enu[:TRAJLEN]
     output['fgo_positions'] = graph_positions
     output['fgo_attitudes'] = graph_attitudes
-    output['spoofed_pos'] = spoofed_pos
+    output['spoofed_positions'] = spoofed_pos
     output['qs'] = qs[:k_max]
     output['position_errors'] = position_errors
     output['l2norm_errors'] = l2norm_errors
