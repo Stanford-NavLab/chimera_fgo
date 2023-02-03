@@ -20,11 +20,10 @@ except symforce.AlreadyUsedEpsilon:
 import symforce.symbolic as sf
 
 from chimera_fgo.util.kitti import process_kitti_gt, load_icp_results, load_sv_positions
-from chimera_fgo.util.geometry import so3_expmap
+from chimera_fgo.util.geometry import so3_expmap, euler_to_R, R_to_euler
 from chimera_fgo.odometry import odometry
 from chimera_fgo.symforce.tc_fgo import tc_fgo
 from chimera_fgo.symforce.att_fgo import att_fgo
-from chimera_fgo.symforce.fgo_lidar_only import fgo_lidar_only
 
 
 def chimera_fgo(params):
@@ -37,11 +36,21 @@ def chimera_fgo(params):
     kitti_seq = params['kitti_seq']
     MAX_BIAS = params['MAX_BIAS']
 
-    start_idx = 1550 if kitti_seq == '0028' else 0
+    if kitti_seq == '0027':
+        start_idx = 1000
+        lidar_start_idx = 0
+    elif kitti_seq == '0028':
+        start_idx = 1550
+        lidar_start_idx = 1550
+    else:
+        start_idx = 0
+        lidar_start_idx = 0
+    #start_idx = 1550 if kitti_seq == '0028' else 0
 
     N_SHIFT = params['N_SHIFT']
     N_WINDOW = params['N_WINDOW']
     GPS_RATE = params['GPS_RATE']
+    REPROCESS_WINDOW = params['REPROCESS_WINDOW']
 
     TRAJLEN = params['TRAJLEN']
 
@@ -49,17 +58,11 @@ def chimera_fgo(params):
     ATTACK_START = params['ATTACK_START']
     ALPHA = params['ALPHA']
 
-    PR_SIGMA = params['PR_SIGMA']
+    PR_SIGMA = params['PR_SIGMA']  # GPS range standard deviation
+    ODOM_SIGMA = params['ODOM_SIGMA']  # Lidar odometry standard deviation
 
-    # Lidar odometry covariance
-    ODOM_SIGMA = params['ODOM_SIGMA']
-
-    ATTITUDE = params['ATTITUDE']
-
-    # Attitude measurement standard deviations
-    ATT_SIGMA = params['ATT_SIGMA']
-
-    DEBUG = params['DEBUG']
+    ATTITUDE = params['ATTITUDE']  # Use attitude measurements
+    ATT_SIGMA = params['ATT_SIGMA']  # Attitude measurement standard deviations
 
     # ================================================= #
     #                     SETUP                         #
@@ -72,7 +75,10 @@ def chimera_fgo(params):
     gt_enu, gt_Rs, gt_attitudes = process_kitti_gt(gtpath, start_idx=start_idx)
 
     icp_path = os.path.join(data_path, 'icp')
-    lidar_Rs, lidar_ts, lidar_positions, lidar_covariances = load_icp_results(icp_path, start_idx=start_idx)
+    lidar_Rs, lidar_ts, lidar_positions, lidar_covariances = load_icp_results(icp_path, start_idx=lidar_start_idx)
+    if kitti_seq == '0027':
+        lidar_Rs = lidar_Rs[start_idx:]
+        lidar_ts = lidar_ts[start_idx:]
 
     # Load satellite positions
     sv_path = os.path.join(data_path, 'svs')
@@ -152,7 +158,7 @@ def chimera_fgo(params):
         for i in range(N_WINDOW):
             pose = result.optimized_values["poses"][i]
             window_positions[i] = pose.position().flatten()   
-            window_attitudes[i] = pose.rotation().to_yaw_pitch_roll().flatten()   
+            window_attitudes[i] = pose.rotation().to_yaw_pitch_roll().flatten()[[2,1,0]]   
 
         # Compute test statistic
         for i in range(N_WINDOW//GPS_RATE):
@@ -163,21 +169,22 @@ def chimera_fgo(params):
         pbar.set_description(f"q = {q:.2f}")
         qs[k] = q
 
+        # Save trajectory
+        graph_positions[N_SHIFT*k:N_SHIFT*(k+1)] = window_positions[:N_SHIFT]
+        graph_attitudes[N_SHIFT*k:N_SHIFT*(k+1)] = window_attitudes[:N_SHIFT]
+
         # Check spoofing
         if MITIGATION and q > T:
             print("Attack detected at ", N_SHIFT * k)
             authentic = False
-
-            # Process the remainder of the trajectory with odometry only
-            init_pose = (init_poses[0].R.to_rotation_matrix(), init_poses[0].t.flatten())
-            odom = lidar_odom[N_SHIFT * k:-1]
+            # Re-process window and remaining trajectory with lidar odometry only
+            rp_idx = N_SHIFT * k - max(REPROCESS_WINDOW - N_WINDOW, 0)  # reprocess start index
+            init_pose = (euler_to_R(graph_attitudes[rp_idx]), graph_positions[rp_idx])
+            odom = lidar_odom[rp_idx:-1]
             positions, rotations = odometry(init_pose, odom)
-            graph_positions[N_SHIFT * k:] = positions
-            break  
-
-        # Save trajectory
-        graph_positions[N_SHIFT*k:N_SHIFT*(k+1)] = window_positions[:N_SHIFT]
-        graph_attitudes[N_SHIFT*k:N_SHIFT*(k+1)] = window_attitudes[:N_SHIFT]
+            graph_positions[rp_idx:] = positions
+            graph_attitudes[rp_idx:] = np.vstack([R_to_euler(R) for R in rotations])
+            break
 
         # Update initial poses
         init_poses[:-N_SHIFT] = result.optimized_values["poses"][N_SHIFT:]
@@ -193,14 +200,15 @@ def chimera_fgo(params):
         iter_times.append(time.time() - start_time) 
         
         # Clean up memory
-        del result
-        del odom
-        del ranges
-        del satpos
-        if k != k_max - 1:
-            del window_positions
-            del window_attitudes
-        gc.collect()
+        if params['CLEAR_MEM']:
+            del result
+            del odom
+            del ranges
+            del satpos
+            if k != k_max - 1:
+                del window_positions
+                del window_attitudes
+            gc.collect()
 
         if params['DEBUG']:
             # Print memory usage

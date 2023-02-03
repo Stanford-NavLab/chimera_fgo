@@ -7,9 +7,8 @@ Functions and utilities for point-cloud registration.
 import numpy as np
 import open3d as o3d
 import time
-from numba import njit
 
-from chimera_fgo.geom_util import se3_expmap, se3_logmap
+from chimera_fgo.util.geometry import se3_expmap, se3_logmap
 
 
 def initialize_source_and_target(source_data, target_data):
@@ -74,7 +73,6 @@ def p2pl_ICP(source, target, threshold, trans_init):
     return reg_p2pl, eval_time
 
 
-@njit
 def p2pl_ICP_with_covariance(source, target, threshold, trans_init, sigma=0.02, bias=0.05, Q_ini=0.1*np.eye(6)):
     """Point-to-Plane ICP with covariance
     

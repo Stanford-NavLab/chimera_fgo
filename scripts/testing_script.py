@@ -23,10 +23,11 @@ from chimera_fgo.chimera_fgo import chimera_fgo
 # kitti_seq = '0034'  # ['0018', '0027', '0028', '0034']
 # MAX_BIAS = 0  # [m]  # [0, 20, 50, 100]
 params = {}
-N_RUNS = 15
+N_RUNS = 10
 params['MITIGATION'] = True
 params['ATTITUDE'] = False
 params['DEBUG'] = False
+params['CLEAR_MEM'] = False
 
 # ================================================= #
 #                    PARAMETERS                     #
@@ -58,8 +59,10 @@ params['ATT_SIGMA'] = ATT_SIGMA
 
 MAX_BIAS = 100
 N_WINDOW = 100
-MITIGATION = False
-ATTACK_START = 800
+MITIGATION = True
+ATTACK_START = 1000
+
+params['REPROCESS_WINDOW'] = 300
 
 # ================================================= #
 #                       SETUP                       #
@@ -68,22 +71,24 @@ ATTACK_START = 800
 # Start memory tracking
 if params['DEBUG']: tracemalloc.start()
 
-for kitti_seq in ['0018', '0027', '0028', '0034']:
+for kitti_seq in ['0027']:
     for MAX_BIAS in [200]:
         #for ATT_SIGMA_SCALE in [0.05, 0.1, 0.15, 0.2, 0.25]:
-        for N_WINDOW in [100]:
-        #for MITIGATION in [True]:
+        for N_WINDOW in [20, 50, 100, 200, 300]:
+        #for MITIGATION in [False]:
 
             params['kitti_seq'] = kitti_seq
             params['MAX_BIAS'] = MAX_BIAS
             params['N_WINDOW'] = N_WINDOW
             params['MITIGATION'] = MITIGATION
-            params['ATTACK_START'] = ATTACK_START
+            #params['ATTACK_START'] = ATTACK_START
+            RP_WINDOW = params['REPROCESS_WINDOW']
 
             print(f"Running {kitti_seq} with {MAX_BIAS}m bias: \
                   \n    mitigation = {params['MITIGATION']}, \
                   \n    attitude = {params['ATTITUDE']}, \
                   \n    window size = {params['N_WINDOW']}, \
+                  \n    reprocess window = {params['REPROCESS_WINDOW']}, \
                   \n    attack start = {params['ATTACK_START']}, \
                   \n    runs = {N_RUNS}")
 
@@ -92,7 +97,7 @@ for kitti_seq in ['0018', '0027', '0028', '0034']:
             if not os.path.exists(date_path):
                 os.makedirs(date_path)
 
-            fname = f'fgo_{MAX_BIAS}m_{ATTACK_START}start_{N_RUNS}runs_{N_WINDOW}w'
+            fname = f'fgo_{MAX_BIAS}m_{N_RUNS}runs_{N_WINDOW}w_{RP_WINDOW}rp'
             if not params['MITIGATION']: fname += '_blind' 
             if params['ATTITUDE']: fname = 'att_' + fname
 
@@ -117,11 +122,13 @@ for kitti_seq in ['0018', '0027', '0028', '0034']:
                     print(f"  Current memory usage is {current / 10**6:.2f} MB; Peak was {peak / 10**6:.2f} MB")
             
                 # Save the output to file
-                np.savez_compressed(os.path.join(results_path, f'run_{run_i}.npz'), **output, **params)
+                timestr = time.strftime("%Y-%m-%d_%H-%M-%S")
+                np.savez_compressed(os.path.join(results_path, f'run_{timestr}.npz'), **output, **params)
 
                 # Clear the memory
-                del output
-                gc.collect()
+                if params['CLEAR_MEM']:
+                    del output
+                    gc.collect()
 
             # Track memory
             # tracemalloc.start()

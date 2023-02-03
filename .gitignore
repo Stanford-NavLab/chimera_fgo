@@ -1,6 +1,7 @@
-# Data folder
-#data/
-#images/
+# Data folders
+data/
+images/
+results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

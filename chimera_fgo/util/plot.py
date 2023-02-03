@@ -64,7 +64,63 @@ def plot_trajectories(gt_enu, graph_positions, lidar_positions=None, spoofed_pos
         scaleanchor = "x",
         scaleratio = 1,
     )
-    fig.update_xaxes(range=[-50, 950])
+    #fig.update_xaxes(range=[-50, 950])
+    return fig
+
+
+def plot_trajectories_3D(gt_enu, graph_positions=None, lidar_positions=None, spoofed_positions=None, detect_idx=None):
+    """Plot FGO against ground-truth and spoofed trajectories.
+
+    Parameters
+    ----------
+    gt_enu : numpy.ndarray
+        Ground-truth trajectory in ENU coordinates
+    graph_positions : numpy.ndarray
+        FGO trajectory in ENU coordinates
+    lidar_positions : numpy.ndarray, optional
+        Lidar-only trajectory in ENU coordinates, by default None
+    spoofed_positions : numpy.ndarray, optional 
+        Spoofed trajectory in ENU coordinates, by default None
+    detect_idx : int, optional
+        Index of the detection, by default None
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+
+    """
+    ATTACK_START = 1000
+    line_width = 2
+    marker_size = 10
+
+    gt_traj = go.Scatter3d(x=gt_enu[:,0], y=gt_enu[:,1], z=gt_enu[:,2], name='Ground-truth', hovertext=np.arange(len(gt_enu)), marker=dict(size=3), line=dict(width=line_width, color='black'))
+    start = go.Scatter3d(x=[0], y=[0], z=[0], name='Start', mode='markers', marker=dict(size=marker_size, color='blue'), showlegend=False)
+    plot_data = [gt_traj, start]
+
+    if graph_positions is not None:
+        fgo_traj = go.Scatter3d(x=graph_positions[:,0], y=graph_positions[:,1], z=graph_positions[:,2], name='SR FGO', marker=dict(size=3), line=dict(width=line_width))
+        plot_data += [fgo_traj]
+
+    if lidar_positions is not None:
+        lidar_traj = go.Scatter3d(x=lidar_positions[:,0], y=lidar_positions[:,1], z=lidar_positions[:,2], name='Odometry', 
+            marker=dict(size=3), line=dict(width=line_width, color='green'))
+        plot_data += [lidar_traj]
+
+    if spoofed_positions is not None:
+        spoof_traj = go.Scatter3d(x=spoofed_positions[:,0], y=spoofed_positions[:,1], z=spoofed_positions[:,2], 
+            name='Spoofed', marker=dict(size=3), line=dict(width=line_width, color='red', dash='dash')) 
+        spoof_start = go.Scatter3d(x=[spoofed_positions[ATTACK_START,0]], y=[spoofed_positions[ATTACK_START,1]], z=[spoofed_positions[ATTACK_START,2]], 
+            name='Spoofing start', mode='markers', marker=dict(size=marker_size, color='red'), showlegend=True)
+        plot_data += [spoof_traj, spoof_start]
+
+    if detect_idx is not None:
+        detect = go.Scatter3d(x=[graph_positions[detect_idx,0]], y=[graph_positions[detect_idx,1]], z=[graph_positions[detect_idx,2]], 
+            name='Detection', mode='markers', hovertext=str(detect_idx), marker=dict(size=marker_size, color='green'), showlegend=True)
+        plot_data += [detect]
+    
+    fig = go.Figure(data=plot_data)
+    fig.update_layout(width=1000, height=1000, xaxis_title='East [m]', yaxis_title='North [m]')
+    fig.update_layout(legend=dict(x=0.05, y=0.98), font=dict(size=12), scene=dict(aspectmode='data'))
     return fig
 
 
