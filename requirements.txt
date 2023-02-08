@@ -8,4 +8,3 @@ pandas
 open3d
 symforce==0.7.0
 tqdm
-open3d
