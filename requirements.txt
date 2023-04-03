@@ -6,5 +6,5 @@ ipympl
 plotly
 pandas
 open3d
-symforce
+symforce==0.7.0
 tqdm
