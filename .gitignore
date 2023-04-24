@@ -2,6 +2,7 @@
 data/
 images/
 results/
+.vscode/
 
 # vscode
 .vscode/
