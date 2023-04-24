@@ -145,7 +145,7 @@ def normalize(v):
     return v / np.linalg.norm(v)
 
 
-def pc_plot_trace(P, color=None, size=2):
+def pc_plot_trace(P, color=None, size=2, opacity=1.0):
     """Generate plotly plot trace for point cloud
 
     Parameters
@@ -159,8 +159,10 @@ def pc_plot_trace(P, color=None, size=2):
         Scatter plot trace
 
     """
+    if color is None:
+        color = P[:,2]
     return go.Scatter3d(x=P[:,0], y=P[:,1], z=P[:,2], 
-        mode='markers', marker=dict(size=size, color=color))
+        mode='markers', opacity=opacity, marker=dict(size=size, color=color))
 
 
 def pose_plot_trace(R, t):

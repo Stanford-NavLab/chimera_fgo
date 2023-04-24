@@ -49,17 +49,17 @@ def plot_trajectories(gt_enu, graph_positions, lidar_positions=None, spoofed_pos
         spoof_traj = go.Scatter(x=spoofed_positions[:,0], y=spoofed_positions[:,1], 
             name='Spoofed', line=dict(width=line_width, color='red', dash='dash')) 
         spoof_start = go.Scatter(x=[spoofed_positions[ATTACK_START,0]], y=[spoofed_positions[ATTACK_START,1]], 
-            name='Spoofing start', mode='markers', marker=dict(size=marker_size, color='red'), showlegend=True)
+            name='Spoofing start', mode='markers', marker=dict(size=marker_size, color='red'), showlegend=False)
         plot_data += [spoof_traj, spoof_start]
 
     if detect_idx is not None:
         detect = go.Scatter(x=[graph_positions[detect_idx,0]], y=[graph_positions[detect_idx,1]], 
-            name='Detection', mode='markers', hovertext=str(detect_idx), marker=dict(size=marker_size, color='green'), showlegend=True)
+            name='Detection', mode='markers', hovertext=str(detect_idx), marker=dict(size=marker_size, color='orange'), showlegend=False)
         plot_data += [detect]
     
     fig = go.Figure(data=plot_data)
     fig.update_layout(width=1000, height=1000, xaxis_title='East [m]', yaxis_title='North [m]')
-    fig.update_layout(legend=dict(x=0.05, y=0.98), font=dict(size=24))
+    fig.update_layout(legend=dict(x=0.05, y=0.98), font=dict(size=24), showlegend=False)
     fig.update_yaxes(
         scaleanchor = "x",
         scaleratio = 1,
