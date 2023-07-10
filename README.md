@@ -1,5 +1,17 @@
 Spoofing-resilient LiDAR-GPS Factor Graph Optimization (FGO) with Chimera authentication.
 
+Paper: https://ieeexplore.ieee.org/abstract/document/10139945
+```
+@inproceedings{dai2023spoofing,
+  title={Spoofing-Resilient LiDAR-GPS Factor Graph Localization with Chimera Authentication},
+  author={Dai, Adam and Mina, Tara and Kanhere, Ashwin and Gao, Grace},
+  booktitle={2023 IEEE/ION Position, Location and Navigation Symposium (PLANS)},
+  pages={470--480},
+  year={2023},
+  organization={IEEE}
+}
+```
+
 ## Setup
 
 Clone the GitHub repository:
