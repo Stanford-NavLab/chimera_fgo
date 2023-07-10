@@ -6,7 +6,7 @@ Spoofing-resilient LiDAR-GPS Factor Graph Optimization (FGO) with Chimera authen
 
 Clone the GitHub repository:
 
-    git clone https://github.com/adamdai/chimera_fgo.git
+    git clone https://github.com/Stanford-NavLab/chimera_fgo.git
 
 Create conda environment:
 
