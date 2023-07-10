@@ -1,5 +1,3 @@
-# chimera_fgo
-
 Spoofing-resilient LiDAR-GPS Factor Graph Optimization (FGO) with Chimera authentication.
 
 ## Setup
