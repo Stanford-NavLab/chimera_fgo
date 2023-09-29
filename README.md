@@ -18,12 +18,9 @@ Clone the GitHub repository:
 
     git clone https://github.com/Stanford-NavLab/chimera_fgo.git
 
-Create conda environment:
+Create and activate conda environment:
 
     conda create -n chimera python=3.9
-
-Active the environment:
-   
     conda activate chimera
     
 Install dependencies:
