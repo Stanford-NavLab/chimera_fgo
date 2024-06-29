@@ -1,4 +1,4 @@
-# Spoofing-Resilient LiDAR-GPS Factor Graph Optimization (FGO) with Chimera authentication.
+## Spoofing-Resilient LiDAR-GPS Factor Graph Optimization (FGO) with Chimera authentication.
 
 Paper: https://ieeexplore.ieee.org/abstract/document/10139945
 ```
